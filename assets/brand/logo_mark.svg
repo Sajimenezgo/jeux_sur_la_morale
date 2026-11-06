@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="246" height="246" viewBox="0 0 246 246">
+  <title>Untitled-1</title>
+  <g id="Selection">
+    <path id="mark_bg" d="M59 3 L187 3 C217.928 3 243 28.072 243 59 L243 187 C243 217.928 217.928 243 187 243 L59 243 C28.072 243 3 217.928 3 187 L3 59 C3 28.072 28.072 3 59 3 Z" fill="#0b1328" stroke="#22d3ee" stroke-width="6" stroke-miterlimit="10"/>
+    <path id="rail_l" d="M88 38 L88 208" fill="none" stroke="#a3e635" stroke-width="9" stroke-linecap="round" stroke-miterlimit="10"/>
+    <path id="rail_r" d="M158 38 L158 208" fill="none" stroke="#a3e635" stroke-width="9" stroke-linecap="round" stroke-miterlimit="10"/>
+    <path id="rung1" d="M88 68 L158 68" fill="none" stroke="#22d3ee" stroke-width="7" stroke-linecap="round" stroke-miterlimit="10"/>
+    <path id="rung2" d="M88 108 L158 108" fill="none" stroke="#22d3ee" stroke-width="7" stroke-linecap="round" stroke-miterlimit="10"/>
+    <path id="rung3" d="M88 148 L158 148" fill="none" stroke="#22d3ee" stroke-width="7" stroke-linecap="round" stroke-miterlimit="10"/>
+    <path id="rung4" d="M88 188 L158 188" fill="none" stroke="#22d3ee" stroke-width="7" stroke-linecap="round" stroke-miterlimit="10"/>
+    <path id="descent" d="M31 53 C93 33 113 203 215 199" fill="none" stroke="#e879f9" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+    <path id="dot_start" d="M19 53 C19 46.373 24.373 41 31 41 C37.627 41 43 46.373 43 53 C43 59.627 37.627 65 31 65 C24.373 65 19 59.627 19 53 Z" fill="#fbbf24" stroke="#0b1328" stroke-width="4" stroke-miterlimit="10"/>
+    <path id="dot_min" d="M201 199 C201 191.268 207.268 185 215 185 C222.732 185 229 191.268 229 199 C229 206.732 222.732 213 215 213 C207.268 213 201 206.732 201 199 Z" fill="#fdf4ff" stroke="#e879f9" stroke-width="5" stroke-miterlimit="10"/>
+  </g>
+</svg>

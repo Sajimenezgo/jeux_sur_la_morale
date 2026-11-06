@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <title>Gradient Ladders · Mando</title>
+  <meta name="theme-color" content="#070b16">
+  <link rel="icon" href="assets/brand/logo_mark.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js" defer></script>
+</head>
+<body class="mobile">
+  <header class="m-top">
+    <div class="brand"><img src="assets/brand/logo_mark.svg" alt="" onerror="this.style.display='none'"><b>Gradient Ladders</b></div>
+    <div class="conn" id="conn" role="status" aria-live="polite"><i></i><span id="conn-text">Sin conexión</span></div>
+  </header>
+  <main class="m-main">
+    <!-- 1. Unirse -->
+    <form class="screen" id="s-join" autocomplete="off">
+      <p class="eyebrow">Mando de juego</p>
+      <h1>Únete a la partida</h1>
+      <div class="field"><label for="in-name">Tu nombre</label><input id="in-name" type="text" maxlength="16" placeholder="Ej. Ada" autocomplete="nickname" required></div>
+      <div class="field"><label for="in-room">Código de sala</label><input id="in-room" class="room-input" type="text" maxlength="4" placeholder="ABCD" inputmode="text" autocapitalize="characters" spellcheck="false" required></div>
+      <p class="err" id="join-err" role="alert"></p>
+      <button class="btn primary" id="join-btn" type="submit" style="min-height:56px">CONECTAR</button>
+    </form>
+
+    <!-- 2. Personaje -->
+    <section class="screen" id="s-pick" hidden style="justify-content:flex-start">
+      <p class="eyebrow">Paso 2 de 3</p>
+      <h1>Elige tu rol</h1>
+      <div class="grid-chars" id="chars"></div>
+      <p class="err" id="pick-err" role="alert"></p>
+    </section>
+
+    <!-- 3. Listo / espera -->
+    <section class="screen" id="s-ready" hidden>
+      <div class="glass me-card" id="me-card"></div>
+      <p class="eyebrow">Paso 3 de 3</p>
+      <h1 id="ready-title">¿Listo para jugar?</h1>
+      <button class="btn primary" id="ready-btn" style="min-height:64px;font-size:1.1rem">ESTOY LISTO</button>
+      <button class="btn ghost" id="change-btn">Cambiar de rol</button>
+      <p class="status-line" id="ready-status"></p>
+    </section>
+
+    <!-- 4. Juego -->
+    <section class="screen" id="s-play" hidden>
+      <div class="glass me-card" id="me-card2"></div>
+      <button class="big-roll" id="roll-btn" disabled>LANZAR<br>DADO</button>
+      <div class="result-big" id="result-big" hidden></div>
+      <p class="status-line" id="play-status"></p>
+    </section>
+
+    <!-- 5. Fin -->
+    <section class="screen" id="s-end" hidden style="text-align:center">
+      <p class="eyebrow">Partida terminada</p>
+      <h1 id="end-title"></h1>
+      <p class="dim" id="end-sub"></p>
+    </section>
+  </main>
+  <script type="module" src="js/mobile.js"></script>
+</body>
+</html>

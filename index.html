@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Gradient Ladders · Pantalla</title>
+  <meta name="description" content="Serpientes y escaleras 3D sobre ciencia de datos y ética de IA. Juega con tu celular como mando.">
+  <meta name="theme-color" content="#070b16">
+  <link rel="icon" href="assets/brand/logo_mark.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+      "gsap": "https://cdn.jsdelivr.net/npm/gsap@3.12.5/index.js"
+    }
+  }
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js" defer></script>
+</head>
+<body>
+  <canvas id="scene" tabindex="0" aria-label="Tablero 3D de Gradient Ladders"></canvas>
+
+  <div id="loader" role="status" aria-live="polite">
+    <div class="box">
+      <p class="eyebrow">Gradient Ladders</p>
+      <h1 style="font-size:1.6rem">Calculando el gradiente…</h1>
+      <div class="progress"><i id="loader-bar"></i></div>
+    </div>
+  </div>
+
+  <main class="overlay">
+    <!-- Lobby -->
+    <section id="lobby" class="glass" aria-labelledby="lobby-title">
+      <div class="brand">
+        <img src="assets/brand/logo_mark.svg" alt="" onerror="this.style.display='none'">
+        <div><b id="lobby-title">Gradient Ladders</b><span>Desciende el gradiente. Evita el sesgo.</span></div>
+      </div>
+      <div class="join-card">
+        <div id="qr" aria-label="Código QR para unirse" role="img"><span class="hint" style="color:#334">QR…</span></div>
+        <div>
+          <p class="eyebrow">Código de sala</p>
+          <div class="room-code mono" id="room-code" aria-live="polite">····</div>
+          <p class="join-url" id="join-url"></p>
+        </div>
+      </div>
+      <p class="hint" id="net-status">Escanea el QR con tu celular o abre la dirección e ingresa el código.</p>
+      <div>
+        <p class="eyebrow" style="margin-bottom:8px">Jugadores <span id="player-count" class="mono">0/6</span></p>
+        <div class="slots" id="slots"></div>
+      </div>
+      <div class="lobby-actions">
+        <button class="btn primary" id="start-btn" disabled>INICIAR PARTIDA</button>
+      </div>
+      <p class="hint" id="start-hint">Se necesitan al menos 2 jugadores listos.</p>
+    </section>
+
+    <!-- HUD -->
+    <section id="hud" hidden aria-label="Partida">
+      <div class="hud-top glass">
+        <div class="brand"><img src="assets/brand/logo_mark.svg" alt="" onerror="this.style.display='none'"><b>Gradient Ladders</b></div>
+        <span class="chip" id="hud-room">----</span>
+      </div>
+      <div class="players glass" id="players" aria-label="Jugadores"></div>
+      <div class="dice-panel glass">
+        <div class="dice-num" id="dice-num" aria-live="polite">–</div>
+        <div><p class="eyebrow">Turno <span id="turn-n" class="mono">1</span></p><p class="turn-label" id="turn-label">—</p></div>
+      </div>
+      <div class="log glass"><p class="eyebrow">Registro de eventos</p><ol id="log" aria-live="polite"></ol></div>
+      <div class="lesson glass" id="lesson" hidden></div>
+    </section>
+  </main>
+
+  <div id="victory" hidden role="dialog" aria-modal="true" aria-labelledby="victory-title">
+    <div class="card glass">
+      <p class="eyebrow">Despliegue ético completado</p>
+      <h2 id="victory-title">¡Victoria!</h2>
+      <p id="victory-sub" class="dim"></p>
+      <button class="btn primary" id="again-btn">NUEVA PARTIDA</button>
+    </div>
+  </div>
+
+  <noscript><p style="position:fixed;inset:0;display:grid;place-items:center;color:#e6edf7">Este juego requiere JavaScript.</p></noscript>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

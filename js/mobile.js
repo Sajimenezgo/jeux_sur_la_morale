@@ -1,6 +1,7 @@
 // mobile.js — UI del mando (mobile.html): unirse → rol → listo → lanzar dado.
 import { CHARACTERS, GAME } from './config.js';
 import { ClientNetwork, MSG, sanitizeName } from './network.js';
+import { loadIceServers } from './ice.js';
 
 const $ = (id) => document.getElementById(id);
 const charOf = (id) => CHARACTERS.find((c) => c.id === id);
@@ -70,7 +71,7 @@ const app = {
     store.set('gl.name', name);
     $('join-btn').disabled = true;
     this.setConn('wait', 'Conectando…');
-    const net = this.net = new ClientNetwork({ Peer: globalThis.Peer, name });
+    const net = this.net = new ClientNetwork({ Peer: globalThis.Peer, name, iceServers: await loadIceServers() });
     net.on('message', (m) => this.onMessage(m));
     net.on('open', ({ reconnect }) => { this.setConn('ok', 'Conectado'); if (reconnect) vibrate(80); });
     net.on('reconnecting', ({ attempt }) => this.setConn('wait', `Reconectando (${attempt})…`));
@@ -84,7 +85,9 @@ const app = {
       this.setConn('off', 'Sin conexión');
       $('join-err').textContent = err?.code === 'room_not_found' || err?.type === 'peer-unavailable'
         ? 'No se encontró esa sala. Revisa el código.'
-        : `No se pudo conectar: ${err?.message || 'error de red'}`;
+        : err?.code === 'timeout'
+          ? 'No se pudo conectar: tiempo agotado. Si usas datos móviles, conéctate al mismo Wi-Fi que la pantalla (o configura un servidor TURN).'
+          : `No se pudo conectar: ${err?.message || 'error de red'}`;
     } finally {
       $('join-btn').disabled = false;
     }

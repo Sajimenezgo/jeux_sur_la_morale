@@ -16,7 +16,13 @@ export const MSG = Object.freeze({
   WELCOME: 'welcome', STATE: 'state', ROLLED: 'rolled', ERROR: 'error', PONG: 'pong',
 });
 
-/** STUN públicos por defecto (sobreescribibles con `iceServers`). */
+/**
+ * STUN públicos por defecto (sobreescribibles con `iceServers`).
+ * Los STUN solo bastan cuando ambos dispositivos están en la misma red o tras NAT "amigables".
+ * Un móvil en 4G/5G (NAT simétrico del operador) necesita un relevo TURN: ver `js/ice.js`,
+ * `config/ice.json` y docs/TURN.md. (No se incluyen TURN públicos: los de Open Relay y PeerJS
+ * ya no responden, se comprobó con DNS.)
+ */
 export const DEFAULT_ICE_SERVERS = Object.freeze([
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
@@ -383,7 +389,7 @@ export class ClientNetwork extends Emitter {
    *   maxRetries?:number, connectTimeoutMs?:number, heartbeatMs?:number, timeoutMs?:number}} [o]
    */
   constructor({ Peer = globalThis.Peer, peerOptions, iceServers, storage, name = 'Jugador', random = Math.random,
-    baseDelayMs = 500, maxDelayMs = 15000, maxRetries = 12, connectTimeoutMs = 10000,
+    baseDelayMs = 500, maxDelayMs = 15000, maxRetries = 12, connectTimeoutMs = 20000,
     heartbeatMs = 5000, timeoutMs = 15000 } = {}) {
     super();
     this._Peer = Peer;

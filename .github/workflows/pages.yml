@@ -35,7 +35,7 @@ jobs:
       - name: Preparar sitio estático
         run: |
           mkdir _site
-          cp -r index.html mobile.html css js assets _site/
+          cp -r index.html mobile.html css js assets config _site/
           touch _site/.nojekyll
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

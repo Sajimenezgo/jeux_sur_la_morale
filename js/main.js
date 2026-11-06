@@ -3,6 +3,7 @@
 import { GAME, CHARACTERS, THEME } from './config.js';
 import { Game } from './game.js';
 import { HostNetwork, MSG } from './network.js';
+import { loadIceServers } from './ice.js';
 import { Scene3D } from './scene3d.js';
 import { Animator } from './animations.js';
 
@@ -71,7 +72,7 @@ class HostApp {
     $('net-status').textContent = 'Abriendo sala…';
     this.renderLobby();
     try {
-      this.net = new HostNetwork();
+      this.net = new HostNetwork({ iceServers: await loadIceServers() });
       this.wireNet();
       this.roomCode = await this.net.open();
       this.showRoom(this.roomCode);

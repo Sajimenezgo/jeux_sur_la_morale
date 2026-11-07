@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { tileToXZ, tileToPosition, resolveJump, Game, GameError } from '../js/game.js';
+import { tileToXZ, tileToPosition, resolveJump, Game, GameError, tallyVotes } from '../js/game.js';
 import { BOARD, LADDERS, SNAKES, GAME, CHARACTERS } from '../js/config.js';
 
 const PITCH = BOARD.tileSize + BOARD.gap;
@@ -332,6 +332,72 @@ test('regla de desplazamiento tras resolver desafío ético', () => {
   assert.equal(g.state.players[0].position, 25);
   assert.equal(g.state.players[1].position, 1); // p1 reiniciado en casilla 1
   assert.deepEqual(res.bumped, { playerId: 'p1', name: 'B', from: 25, to: 1 });
+});
+
+test('tallyVotes: consenso grupal, empates y desempate por jugador activo', () => {
+  // Mayoría clara: opción 1 con 3 votos
+  const v1 = { p0: 1, p1: 1, p2: 1, p3: 2 };
+  const t1 = tallyVotes(v1);
+  assert.equal(t1.winningOption, 1);
+  assert.deepEqual(t1.counts, [0, 3, 1, 0]);
+  assert.equal(t1.totalVotes, 4);
+  assert.equal(t1.tie, false);
+
+  // Empate entre opción 0 y 2 (2 votos cada una). Desempata p0 que votó opción 2
+  const v2 = new Map([['p0', 2], ['p1', 0], ['p2', 0], ['p3', 2]]);
+  const t2 = tallyVotes(v2, 'p0');
+  assert.equal(t2.winningOption, 2);
+  assert.equal(t2.tie, true);
+
+  // Empate sin jugador activo o jugador activo votó otra opción
+  const t2b = tallyVotes(v2, 'p99');
+  assert.equal(t2b.winningOption, 0); // primer empatado
+
+  // Sin votos
+  const t3 = tallyVotes({});
+  assert.equal(t3.winningOption, -1);
+  assert.equal(t3.totalVotes, 0);
+});
+
+test('desafío ético grupal: escalera y serpiente según acierto o fallo del consenso', () => {
+  // Caso 1: En escalera, si el grupo no acierta -> pierde el ascenso (se queda en la casilla)
+  const gLad = new Game({ rng: dice(4), interactiveChallenges: true });
+  gLad.addPlayer({ id: 'p0', name: 'A', characterId: 'scientist' });
+  gLad.addPlayer({ id: 'p1', name: 'B', characterId: 'engineer' });
+  gLad.setReady('p0', true);
+  gLad.setReady('p1', true);
+  gLad.start();
+  gLad.roll('p0'); // cae en 4 (escalera 4->25)
+
+  // Votación grupal: opción más votada es incorrecta (isCorrect = false)
+  const votesLad = { p0: 0, p1: 0 }; // Opción A votada por mayoría
+  const tLad = tallyVotes(votesLad, 'p0');
+  const correctOption = 2; // Supongamos que la correcta era C (2)
+  const isCorrectLad = tLad.winningOption === correctOption; // false
+
+  const resLad = gLad.resolveChallenge('p0', isCorrectLad);
+  assert.equal(resLad.outcome, 'stay');
+  assert.equal(resLad.final, 4); // pierde el ascenso: se queda en 4
+  assert.equal(gLad.state.players[0].position, 4);
+
+  // Caso 2: En serpiente, si el grupo no acierta -> pierde posiciones (cae por la serpiente)
+  const gSnk = new Game({ rng: dice(1), interactiveChallenges: true });
+  gSnk.addPlayer({ id: 'p0', name: 'A', characterId: 'scientist' });
+  gSnk.addPlayer({ id: 'p1', name: 'B', characterId: 'engineer' });
+  gSnk.setReady('p0', true);
+  gSnk.setReady('p1', true);
+  gSnk.start();
+  place(gSnk, 'p0', 26);
+  gSnk.roll('p0'); // 26 + 1 = 27 (serpiente 27->5)
+
+  const votesSnk = { p0: 3, p1: 3 };
+  const tSnk = tallyVotes(votesSnk, 'p0');
+  const isCorrectSnk = tSnk.winningOption === correctOption; // false
+
+  const resSnk = gSnk.resolveChallenge('p0', isCorrectSnk);
+  assert.equal(resSnk.outcome, 'fall');
+  assert.equal(resSnk.final, 5); // pierde posiciones: cae a 5
+  assert.equal(gSnk.state.players[0].position, 5);
 });
 
 

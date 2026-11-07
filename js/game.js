@@ -64,6 +64,51 @@ export function resolveJump(n) {
 }
 
 /**
+ * Determina la opción ganadora por mayoría de votos en un desafío ético grupal.
+ * En caso de empate, el voto del jugador activo (`activePlayerId`) desempata si votó por una de las opciones empatadas.
+ * @param {Map<string, number>|Record<string, number>} votes Mapa o dict playerId -> selectedIndex (0..3)
+ * @param {string} [activePlayerId] Id del jugador cuya ficha está en la casilla
+ * @returns {{ winningOption: number, counts: number[], totalVotes: number, tie: boolean }}
+ */
+export function tallyVotes(votes, activePlayerId = null) {
+  const counts = [0, 0, 0, 0];
+  let totalVotes = 0;
+  const entries = votes instanceof Map ? Array.from(votes.entries()) : Object.entries(votes || {});
+  for (const [, opt] of entries) {
+    if (Number.isInteger(opt) && opt >= 0 && opt <= 3) {
+      counts[opt]++;
+      totalVotes++;
+    }
+  }
+
+  if (totalVotes === 0) {
+    return { winningOption: -1, counts, totalVotes: 0, tie: false };
+  }
+
+  let maxCount = -1;
+  for (let i = 0; i < 4; i++) {
+    if (counts[i] > maxCount) maxCount = counts[i];
+  }
+
+  const topOptions = [];
+  for (let i = 0; i < 4; i++) {
+    if (counts[i] === maxCount) topOptions.push(i);
+  }
+
+  let winningOption = topOptions[0];
+  const tie = topOptions.length > 1;
+
+  if (tie && activePlayerId) {
+    const activeVote = votes instanceof Map ? votes.get(activePlayerId) : votes[activePlayerId];
+    if (Number.isInteger(activeVote) && topOptions.includes(activeVote)) {
+      winningOption = activeVote;
+    }
+  }
+
+  return { winningOption, counts, totalVotes, tie };
+}
+
+/**
  * Motor de juego. Reglas:
  *  - Meta exacta en 100: si `from + dado > 100` la ficha avanza hasta 100 y rebota:
  *    `target = 100 - (from + dado - 100)`. Si cae exacto en 100, gana.

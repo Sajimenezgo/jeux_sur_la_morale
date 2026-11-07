@@ -1,7 +1,7 @@
 // main.js — orquesta Game + HostNetwork + Scene3D + Animator + UI del host (index.html).
 // Modo prueba sin celulares: index.html?demo=1 (3 bots locales, juega solo, sin red).
 import { GAME, CHARACTERS, THEME } from './config.js';
-import { Game } from './game.js';
+import { Game, tallyVotes } from './game.js';
 import { HostNetwork, MSG } from './network.js';
 import { loadIceServers } from './ice.js';
 import { resolvePeerClass } from './supabase_peer.js';
@@ -261,6 +261,9 @@ class HostApp {
         if (cur && !cur.connected && this.game.state.phase === 'lobby') { this.game.removePlayer(playerId); this.publish(); }
       }, 20000));
     }
+    if (this.currentChallenge && !this.currentChallenge.concluded) {
+      this.checkVotingComplete();
+    }
     this.publish();
     this.maybeAutoplay();
   }
@@ -418,14 +421,21 @@ class HostApp {
     const card = getChallengeForJump(r.jump.kind, r.jump.from, this.usedCardIds);
     this.usedCardIds.add(card.id);
 
+    if (this.botTimers) {
+      this.botTimers.forEach(clearTimeout);
+    }
+    this.botTimers = [];
+
     this.currentChallenge = {
       playerId: player.id,
+      playerName: player.name,
       card,
       jump: r.jump,
       token,
       dice: r.dice,
       extraTurn: r.dice === 6,
-      answered: false,
+      votes: new Map(),
+      concluded: false,
     };
 
     // 1. Mostrar en pantalla Host
@@ -434,8 +444,14 @@ class HostApp {
     const badge = $('ch-host-badge');
     badge.className = `ch-host-badge ${isLadder ? 'ch-badge-ladder' : 'ch-badge-snake'}`;
     badge.textContent = isLadder
-      ? `Escalera (${r.jump.label}) · ¡Sube si acierta!`
-      : `Alerta de Serpiente (${r.jump.label}) · ¡Se salva si acierta!`;
+      ? `Escalera (${r.jump.label}) · Votación grupal (sube si aciertan)`
+      : `Alerta Serpiente (${r.jump.label}) · Votación grupal (se salva si aciertan)`;
+
+    const expectedCount = this.game.state.players.filter((p) => p.connected).length;
+    const votesCountEl = $('ch-host-votes-count');
+    if (votesCountEl) {
+      votesCountEl.textContent = `Votación grupal: Esperando votos (0 de ${expectedCount} recibidos)...`;
+    }
 
     $('ch-host-title').textContent = card.title;
     $('ch-host-prompt').textContent = card.prompt;
@@ -455,11 +471,17 @@ class HostApp {
       spanLetter.textContent = letters[idx];
 
       const spanText = document.createElement('span');
+      spanText.className = 'opt-text';
       spanText.textContent = optText;
 
-      btn.append(spanLetter, spanText);
+      const badgeVote = document.createElement('span');
+      badgeVote.className = 'opt-votes-badge';
+      badgeVote.id = `ch-host-vote-${idx}`;
+      badgeVote.textContent = '0 votos';
+
+      btn.append(spanLetter, spanText, badgeVote);
       btn.addEventListener('click', () => {
-        if (this.currentChallenge && !this.currentChallenge.answered) {
+        if (this.currentChallenge && !this.currentChallenge.concluded) {
           this.onAnswer(player.id, { cardId: card.id, selectedIndex: idx });
         }
       });
@@ -479,21 +501,20 @@ class HostApp {
         clearInterval(this.challengeTimer);
         $('ch-host-timer').textContent = '0s';
         $('ch-host-timer-fill').style.width = '0%';
-        if (this.currentChallenge && !this.currentChallenge.answered) {
-          this.onAnswer(player.id, { cardId: card.id, selectedIndex: -1 });
-        }
+        this.concludeChallengeVoting();
       } else {
         $('ch-host-timer').textContent = `${timeLeft}s`;
         $('ch-host-timer-fill').style.width = `${(timeLeft / 30) * 100}%`;
       }
     }, 1000);
 
-    this.log(`${player.name} enfrenta validación ética: ${card.title}`, isLadder ? 'ladder' : 'snake', r.jump.label, player.color);
+    this.log(`${player.name} entra a validación ética grupal: ${card.title}`, isLadder ? 'ladder' : 'snake', r.jump.label, player.color);
 
-    // 2. Enviar a cliente móvil
-    this.net?.send(player.id, {
+    // 2. Enviar a TODOS los clientes móviles conectados
+    this.net?.broadcast({
       t: MSG.CHALLENGE,
       playerId: player.id,
+      playerName: player.name,
       jump: r.jump,
       card: {
         id: card.id,
@@ -508,80 +529,145 @@ class HostApp {
 
     this.publish();
 
-    // 3. Si es un bot, responde automáticamente
-    if (player.id.startsWith('bot-')) {
-      clearTimeout(this.botTimer);
-      this.botTimer = setTimeout(() => {
-        if (!this.currentChallenge || this.currentChallenge.answered) return;
+    // 3. Simular votos de todos los bots en la partida
+    const botPlayers = this.game.state.players.filter((p) => p.connected && p.id.startsWith('bot-'));
+    botPlayers.forEach((bot, bIdx) => {
+      const timer = setTimeout(() => {
+        if (!this.currentChallenge || this.currentChallenge.concluded) return;
         const willBeCorrect = Math.random() < 0.75;
         let pick = card.correct;
         if (!willBeCorrect) {
           const wrongIndices = [0, 1, 2, 3].filter((i) => i !== card.correct);
           pick = wrongIndices[Math.floor(Math.random() * wrongIndices.length)];
         }
-        this.onAnswer(player.id, { cardId: card.id, selectedIndex: pick });
-      }, 2500);
+        this.onAnswer(bot.id, { cardId: card.id, selectedIndex: pick });
+      }, 1000 + bIdx * 350 + Math.random() * 600);
+      this.botTimers.push(timer);
+    });
+  }
+
+  onAnswer(playerId, msg) {
+    if (!this.currentChallenge || this.currentChallenge.concluded) return;
+    if (msg.cardId !== this.currentChallenge.card.id) return;
+    if (!Number.isInteger(msg.selectedIndex) || msg.selectedIndex < 0 || msg.selectedIndex > 3) return;
+
+    const voter = this.game.state.players.find((p) => p.id === playerId && p.connected);
+    if (!voter) return;
+
+    if (this.currentChallenge.votes.has(playerId)) return;
+    this.currentChallenge.votes.set(playerId, msg.selectedIndex);
+
+    // Actualizar contadores en modal Host
+    const counts = [0, 0, 0, 0];
+    for (const opt of this.currentChallenge.votes.values()) {
+      if (opt >= 0 && opt <= 3) counts[opt]++;
+    }
+    counts.forEach((c, idx) => {
+      const badge = $(`ch-host-vote-${idx}`);
+      if (badge) badge.textContent = `${c} ${c === 1 ? 'voto' : 'votos'}`;
+    });
+
+    const expectedCount = this.game.state.players.filter((p) => p.connected).length;
+    const votesCountEl = $('ch-host-votes-count');
+    if (votesCountEl) {
+      votesCountEl.textContent = `Votación grupal: ${this.currentChallenge.votes.size} de ${expectedCount} jugadores han votado`;
+    }
+
+    this.checkVotingComplete();
+  }
+
+  checkVotingComplete() {
+    if (!this.currentChallenge || this.currentChallenge.concluded) return;
+    const expectedCount = this.game.state.players.filter((p) => p.connected).length;
+    if (this.currentChallenge.votes.size >= expectedCount && expectedCount > 0) {
+      this.concludeChallengeVoting();
     }
   }
 
-  async onAnswer(playerId, msg) {
-    if (!this.currentChallenge || this.currentChallenge.playerId !== playerId) return;
-    if (this.currentChallenge.answered) return;
-    this.currentChallenge.answered = true;
+  async concludeChallengeVoting() {
+    if (!this.currentChallenge || this.currentChallenge.concluded) return;
+    this.currentChallenge.concluded = true;
     clearInterval(this.challengeTimer);
-    clearTimeout(this.botTimer);
+    if (this.botTimers) {
+      this.botTimers.forEach(clearTimeout);
+      this.botTimers = [];
+    }
 
-    const { card, jump, token } = this.currentChallenge;
+    const { card, jump, token, playerId } = this.currentChallenge;
     const player = this.game.state.players.find((p) => p.id === playerId);
     const isLadder = jump.kind === 'ladder';
-    const isCorrect = msg.selectedIndex === card.correct;
+
+    // Determinar la opción más votada
+    const tally = tallyVotes(this.currentChallenge.votes, playerId);
+    const winningOption = tally.winningOption;
+    const isCorrect = winningOption >= 0 && winningOption === card.correct;
 
     const res = this.game.resolveChallenge(playerId, isCorrect);
 
     this.net?.broadcast({
       t: MSG.CHALLENGE_RESULT,
       playerId,
+      playerName: player?.name ?? 'Jugador',
       cardId: card.id,
       correct: isCorrect,
-      selectedIndex: msg.selectedIndex,
+      selectedIndex: winningOption,
       correctIndex: card.correct,
       explanation: card.explanation,
       tip: card.tip,
       outcome: res.outcome,
       newPosition: res.final,
+      bumped: res.bumped,
+      votesSummary: tally.counts,
+      totalVotes: tally.totalVotes,
     });
 
     // Actualizar UI del modal en el Host
     const optButtons = $('ch-host-options').querySelectorAll('.ch-opt-btn');
+    const letters = ['A', 'B', 'C', 'D'];
     optButtons.forEach((b, idx) => {
       b.disabled = true;
+      const badge = $(`ch-host-vote-${idx}`);
+      const vCount = tally.counts[idx];
+      if (badge) {
+        badge.textContent = `${vCount} ${vCount === 1 ? 'voto' : 'votos'}`;
+        if (idx === winningOption && tally.totalVotes > 0) badge.classList.add('winning');
+      }
       if (idx === card.correct) b.classList.add('correct');
-      else if (idx === msg.selectedIndex && !isCorrect) b.classList.add('wrong');
+      else if (idx === winningOption && !isCorrect) b.classList.add('wrong');
     });
+
+    const winningLetter = winningOption >= 0 ? `Opción ${letters[winningOption]}` : 'Ninguna';
+    const voteDesc = tally.totalVotes > 0 ? `Mayoría: ${winningLetter} (${tally.counts[winningOption]} votos)` : 'Sin votos';
 
     const fb = $('ch-host-feedback');
     const resTitle = $('ch-host-res');
     if (isCorrect) {
       resTitle.className = 'ch-res-success';
       resTitle.textContent = isLadder
-        ? '✓ ¡Validación ética superada! Sube la escalera.'
-        : '✓ ¡Mitigación aplicada! Se salva de caer por la serpiente.';
+        ? `✓ ¡Consenso acertado (${voteDesc})! Sube la escalera.`
+        : `✓ ¡Consenso acertado (${voteDesc})! Se salva de caer por la serpiente.`;
     } else {
       resTitle.className = 'ch-res-fail';
       resTitle.textContent = isLadder
-        ? '✕ Validación fallida: Se queda en la casilla.'
-        : '✕ Falla de mitigación: Cae en la trampa algorítmica.';
+        ? `✕ Consenso fallido (${voteDesc}): Pierde el ascenso y se queda en la casilla.`
+        : `✕ Consenso fallido (${voteDesc}): Pierde posiciones y cae por la serpiente.`;
     }
     $('ch-host-expl').textContent = card.explanation;
     $('ch-host-tip').textContent = card.tip ? `› ${card.tip}` : '';
     fb.hidden = false;
 
     if (isCorrect) {
-      if (isLadder) this.log(`${player.name} superó la validación ética: sube ${jump.from}→${jump.to}`, 'ladder', jump.label, player.color);
-      else this.log(`¡Mitigación exitosa! ${player.name} neutralizó el sesgo de la serpiente ${jump.from}`, 'win', jump.label, THEME.lime);
+      if (isLadder) {
+        this.log(`${player.name} sube la escalera ${jump.from}→${jump.to} por consenso grupal (${winningLetter})`, 'ladder', jump.label, player.color);
+      } else {
+        this.log(`¡Mitigación exitosa por consenso! ${player.name} se salva de la serpiente ${jump.from}`, 'win', jump.label, THEME.lime);
+      }
     } else {
-      if (isLadder) this.log(`${player.name} falló la validación: no sube y se queda en casilla ${jump.from}`, 'snake', jump.label, player.color);
-      else this.log(`${player.name} cayó en la trampa de sesgo: desciende ${jump.from}→${jump.to}`, 'snake', jump.label, player.color);
+      if (isLadder) {
+        this.log(`Consenso fallido (${winningLetter}): ${player.name} pierde el ascenso y permanece en casilla ${jump.from}`, 'snake', jump.label, player.color);
+      } else {
+        this.log(`Consenso fallido (${winningLetter}): ${player.name} pierde posiciones y desciende ${jump.from}→${jump.to}`, 'snake', jump.label, player.color);
+      }
     }
 
     try {

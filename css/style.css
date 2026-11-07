@@ -323,6 +323,47 @@ body.mobile { display: grid; grid-template-rows: auto 1fr; height: 100dvh; }
   background: var(--red);
   color: #fff;
 }
+.ch-opt-btn .opt-text {
+  flex: 1;
+}
+.ch-opt-btn .opt-votes-badge {
+  margin-left: auto;
+  font: 700 0.75rem var(--font-mono);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: var(--dim);
+  flex-shrink: 0;
+  transition: all .15s ease-out;
+}
+.ch-opt-btn .opt-votes-badge.winning {
+  background: var(--amber);
+  border-color: var(--amber);
+  color: #070b16;
+}
+.ch-voting-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0;
+}
+.ch-voting-status {
+  font: 600 0.82rem var(--font-mono);
+  color: var(--cyan);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ch-voting-sub {
+  font: 600 0.85rem var(--font-display);
+  color: var(--cyan);
+}
+.ch-vote-status {
+  font: 0.85rem var(--font-mono);
+  color: var(--amber);
+  margin: 4px 0 0;
+}
 
 .challenge-box {
   padding: 18px;

@@ -195,11 +195,12 @@ const app = {
   },
 
   onChallenge(m) {
-    if (m.playerId !== this.myId) return;
     this.currentChallenge = m;
+    this.currentChallenge.answered = false;
     vibrate([80, 40, 80, 40, 150]);
     this.meCard($('me-card3'));
 
+    const isMe = m.playerId === this.myId;
     const isLadder = m.jump.kind === 'ladder';
     const box = document.querySelector('.challenge-box');
     if (box) box.className = `challenge-box glass ${isLadder ? 'ladder' : 'snake'}`;
@@ -207,8 +208,21 @@ const app = {
     const badge = $('ch-badge');
     badge.className = `challenge-badge ${isLadder ? 'ch-badge-ladder' : 'ch-badge-snake'}`;
     badge.textContent = isLadder
-      ? `Escalera (${m.jump.label}) · ¡Sube si aciertas!`
-      : `Alerta de Serpiente (${m.jump.label}) · ¡Sálvate si aciertas!`;
+      ? `Escalera (${m.jump.label}) · ${isMe ? '¡Subes si aciertan!' : 'Validación grupal'}`
+      : `Alerta Serpiente (${m.jump.label}) · ${isMe ? '¡Te salvas si aciertan!' : 'Validación grupal'}`;
+
+    const sub = $('ch-voting-sub');
+    if (sub) {
+      sub.textContent = isMe
+        ? 'Tu ficha está en juego · Vota tu respuesta'
+        : `Votación grupal · Ficha en juego: ${m.playerName || 'Compañero'}`;
+    }
+
+    const voteStatus = $('ch-vote-status');
+    if (voteStatus) {
+      voteStatus.hidden = true;
+      voteStatus.textContent = '';
+    }
 
     $('ch-title').textContent = m.card.title;
     $('ch-prompt').textContent = m.card.prompt;
@@ -228,9 +242,15 @@ const app = {
       spanLetter.textContent = letters[idx];
 
       const spanText = document.createElement('span');
+      spanText.className = 'opt-text';
       spanText.textContent = optText;
 
-      btn.append(spanLetter, spanText);
+      const badgeVote = document.createElement('span');
+      badgeVote.className = 'opt-votes-badge';
+      badgeVote.id = `mob-vote-${idx}`;
+      badgeVote.hidden = true;
+
+      btn.append(spanLetter, spanText, badgeVote);
       btn.addEventListener('click', () => this.sendAnswer(m.card.id, idx));
       optContainer.append(btn);
     });
@@ -238,7 +258,7 @@ const app = {
     $('ch-feedback').hidden = true;
     optContainer.hidden = false;
 
-    // Timer regressivo
+    // Timer regresivo
     clearInterval(this.challengeTimer);
     let timeLeft = Math.floor((m.timeoutMs || 30000) / 1000);
     $('ch-timer-num').textContent = `${timeLeft}s`;
@@ -263,13 +283,18 @@ const app = {
   sendAnswer(cardId, selectedIndex) {
     if (!this.currentChallenge || this.currentChallenge.answered) return;
     this.currentChallenge.answered = true;
-    clearInterval(this.challengeTimer);
 
     const buttons = $('ch-options').querySelectorAll('.ch-opt-btn');
     buttons.forEach((b, idx) => {
       b.disabled = true;
       if (idx === selectedIndex) b.classList.add('selected');
     });
+
+    const voteStatus = $('ch-vote-status');
+    if (voteStatus) {
+      voteStatus.textContent = '✓ Voto registrado. Esperando el consenso de los demás jugadores...';
+      voteStatus.hidden = false;
+    }
 
     this.net?.send({
       t: MSG.ANSWER,
@@ -279,34 +304,58 @@ const app = {
   },
 
   onChallengeResult(m) {
-    if (m.playerId !== this.myId) {
-      if (this.state?.phase === 'challenge') {
-        const tp = this.state.players.find((p) => p.id === m.playerId);
-        $('play-status').textContent = m.correct
-          ? `${tp?.name ?? 'El jugador'} superó la validación ética.`
-          : `${tp?.name ?? 'El jugador'} falló la validación ética.`;
-      }
-      return;
-    }
-
     clearInterval(this.challengeTimer);
-    vibrate(m.correct ? [100, 50, 150] : [250, 100, 250]);
+    const isMe = m.playerId === this.myId;
+    vibrate(isMe ? (m.correct ? [100, 50, 150] : [250, 100, 250]) : (m.correct ? [80, 40, 80] : [150]));
 
     const buttons = $('ch-options').querySelectorAll('.ch-opt-btn');
     buttons.forEach((b, idx) => {
       b.disabled = true;
       if (idx === m.correctIndex) b.classList.add('correct');
       else if (idx === m.selectedIndex && !m.correct) b.classList.add('wrong');
+      const badge = $(`mob-vote-${idx}`);
+      if (badge && Array.isArray(m.votesSummary)) {
+        const count = m.votesSummary[idx] || 0;
+        badge.textContent = `${count} ${count === 1 ? 'voto' : 'votos'}`;
+        if (idx === m.selectedIndex && m.totalVotes > 0) badge.classList.add('winning');
+        badge.hidden = false;
+      }
     });
+
+    const voteStatus = $('ch-vote-status');
+    if (voteStatus) voteStatus.hidden = true;
 
     const isLadder = this.currentChallenge?.jump?.kind === 'ladder';
     const resHeader = $('ch-result-header');
-    if (m.correct) {
-      resHeader.className = 'ch-res-success';
-      resHeader.textContent = isLadder ? '✓ ¡Validación exitosa! Subes la escalera.' : '✓ ¡Mitigación correcta! Te salvaste de la serpiente.';
+    const letters = ['A', 'B', 'C', 'D'];
+    const winningLetter = m.selectedIndex >= 0 ? `Opción ${letters[m.selectedIndex]}` : 'Ninguna';
+    const voteDesc = m.totalVotes > 0 ? `Mayoría: ${winningLetter}` : 'Sin votos';
+
+    if (isMe) {
+      if (m.correct) {
+        resHeader.className = 'ch-res-success';
+        resHeader.textContent = isLadder
+          ? `✓ ¡Consenso acertado (${voteDesc})! Subes la escalera.`
+          : `✓ ¡Consenso acertado (${voteDesc})! Te salvaste de la serpiente.`;
+      } else {
+        resHeader.className = 'ch-res-fail';
+        resHeader.textContent = isLadder
+          ? `✕ Consenso fallido (${voteDesc}): Pierdes el ascenso.`
+          : `✕ Consenso fallido (${voteDesc}): Pierdes posiciones y caes.`;
+      }
     } else {
-      resHeader.className = 'ch-res-fail';
-      resHeader.textContent = isLadder ? '✕ Validación fallida: Te quedas en la casilla.' : '✕ Falla de mitigación: Caes por la serpiente.';
+      const pName = m.playerName || 'Tu compañero';
+      if (m.correct) {
+        resHeader.className = 'ch-res-success';
+        resHeader.textContent = isLadder
+          ? `✓ ¡Consenso acertado (${voteDesc})! ${pName} sube la escalera.`
+          : `✓ ¡Consenso acertado (${voteDesc})! ${pName} se salva de la serpiente.`;
+      } else {
+        resHeader.className = 'ch-res-fail';
+        resHeader.textContent = isLadder
+          ? `✕ Consenso fallido (${voteDesc}): ${pName} pierde el ascenso.`
+          : `✕ Consenso fallido (${voteDesc}): ${pName} pierde posiciones y cae.`;
+      }
     }
 
     $('ch-explanation').textContent = m.explanation;

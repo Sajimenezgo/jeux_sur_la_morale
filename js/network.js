@@ -65,12 +65,19 @@ const SCHEMAS = {
   [MSG.ERROR]: (m) => (typeof m.code === 'string' && typeof m.message === 'string'
     ? { code: m.code.slice(0, 64), message: m.message.slice(0, 200) } : undefined),
   [MSG.CHALLENGE]: (m) => (isObj(m.card) && isObj(m.jump) && typeof m.playerId === 'string'
-    ? { playerId: m.playerId, card: m.card, jump: m.jump, timeoutMs: Number(m.timeoutMs) || 30000 } : undefined),
+    ? {
+        playerId: m.playerId,
+        playerName: typeof m.playerName === 'string' ? sanitizeName(m.playerName) : undefined,
+        card: m.card,
+        jump: m.jump,
+        timeoutMs: Number(m.timeoutMs) || 30000,
+      } : undefined),
   [MSG.ANSWER]: (m) => (typeof m.cardId === 'string' && Number.isInteger(m.selectedIndex) && m.selectedIndex >= 0 && m.selectedIndex <= 3
     ? { cardId: m.cardId, selectedIndex: m.selectedIndex } : undefined),
   [MSG.CHALLENGE_RESULT]: (m) => (typeof m.playerId === 'string' && typeof m.cardId === 'string' && typeof m.correct === 'boolean' && typeof m.outcome === 'string'
     ? {
         playerId: m.playerId,
+        playerName: typeof m.playerName === 'string' ? sanitizeName(m.playerName) : undefined,
         cardId: m.cardId,
         correct: m.correct,
         selectedIndex: Number.isInteger(m.selectedIndex) ? m.selectedIndex : -1,
@@ -80,6 +87,8 @@ const SCHEMAS = {
         outcome: m.outcome,
         newPosition: Number(m.newPosition) || 0,
         bumped: isObj(m.bumped) ? m.bumped : null,
+        votesSummary: Array.isArray(m.votesSummary) ? m.votesSummary.map((n) => Number(n) || 0) : undefined,
+        totalVotes: Number(m.totalVotes) || 0,
       } : undefined),
 };
 

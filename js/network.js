@@ -79,6 +79,7 @@ const SCHEMAS = {
         tip: String(m.tip ?? '').slice(0, 300),
         outcome: m.outcome,
         newPosition: Number(m.newPosition) || 0,
+        bumped: isObj(m.bumped) ? m.bumped : null,
       } : undefined),
 };
 

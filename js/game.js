@@ -233,6 +233,18 @@ export class Game {
     }
 
     player.position = result.final;
+
+    // Regla de desplazamiento: si llega a una posición > 0 ya tomada por otra ficha,
+    // la ficha nueva toma la posición y la ficha anterior reinicia en la casilla 1.
+    result.bumped = null;
+    if (result.final > 0 && !result.pendingChallenge) {
+      const occupant = this._players.find((p) => p.id !== playerId && p.position === result.final);
+      if (occupant) {
+        occupant.position = 1;
+        result.bumped = { playerId: occupant.id, name: occupant.name, from: result.final, to: 1 };
+      }
+    }
+
     this._lastRoll = { ...result, path: [...result.path] };
     this._version++;
 
@@ -257,6 +269,8 @@ export class Game {
     }
 
     if (result.jump) this._emit('jumped', { playerId, ...result.jump });
+    if (result.bumped) this._emit('bumped', result.bumped);
+
     if (result.won) {
       this._emit('won', { playerId, forfeit: false });
     } else {
@@ -269,7 +283,7 @@ export class Game {
    * Resuelve el desafío ético pendiente para la serpiente o escalera.
    * @param {string} playerId
    * @param {boolean} success si el jugador acertó o superó la validación
-   * @returns {{playerId:string, jump:object, success:boolean, outcome:string, final:number, won:boolean, extraTurn:boolean}}
+   * @returns {{playerId:string, jump:object, success:boolean, outcome:string, final:number, won:boolean, extraTurn:boolean, bumped:object|null}}
    */
   resolveChallenge(playerId, success) {
     if (this._phase !== 'challenge') throw new GameError('not_in_challenge', 'La partida no está en fase de desafío');
@@ -301,6 +315,17 @@ export class Game {
     }
 
     player.position = finalPos;
+
+    // Regla de desplazamiento al resolver desafío
+    let bumped = null;
+    if (finalPos > 0) {
+      const occupant = this._players.find((p) => p.id !== playerId && p.position === finalPos);
+      if (occupant) {
+        occupant.position = 1;
+        bumped = { playerId: occupant.id, name: occupant.name, from: finalPos, to: 1 };
+      }
+    }
+
     const won = finalPos === BOARD.tiles;
     this._phase = won ? 'finished' : 'playing';
     if (won) this._winnerId = playerId;
@@ -313,6 +338,7 @@ export class Game {
       final: finalPos,
       won,
       extraTurn: extraTurn && !won,
+      bumped,
     };
     this._pendingChallenge = null;
     this._version++;
@@ -320,6 +346,7 @@ export class Game {
     if (outcome === 'climb' || outcome === 'fall') {
       this._emit('jumped', { playerId, from: jump.from, to: jump.to, kind: jump.kind, label: jump.label });
     }
+    if (bumped) this._emit('bumped', bumped);
     this._emit('challengeResolved', resolution);
 
     if (won) {

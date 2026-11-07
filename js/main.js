@@ -379,6 +379,16 @@ class HostApp {
         await sleep(this.anim.reduced ? 200 : 450);
         await this.anim.slideAlongJump(token, r.jump.from, r.jump.to, r.jump.kind);
       }
+
+      if (r.bumped) {
+        const victimToken = this.s3.tokens.get(r.bumped.playerId);
+        this.log(`¡Casilla ocupada! ${player.name} desplaza a ${r.bumped.name} a la casilla 1`, 'snake', null, '#fb4a6b');
+        if (victimToken) {
+          await sleep(this.anim.reduced ? 100 : 250);
+          await this.anim.hopToken(victimToken, victimToken.position.clone(), this.s3.tokenPosition(victimToken, 1), { height: 1.2, duration: 0.5 });
+          victimToken.userData.tile = 1;
+        }
+      }
       if (r.won) {
         this.log(`${player.name} llega a la casilla 100: ¡despliegue ético!`, 'win', null, '#fbbf24');
         await this.anim.celebrate(token);
@@ -587,6 +597,16 @@ class HostApp {
       } else if (res.outcome === 'stay') {
         this.s3.highlightTile(jump.from, THEME.amber);
         await sleep(800);
+      }
+
+      if (res.bumped) {
+        const victimToken = this.s3.tokens.get(res.bumped.playerId);
+        this.log(`¡Casilla ocupada! ${player.name} desplaza a ${res.bumped.name} a la casilla 1`, 'snake', null, '#fb4a6b');
+        if (victimToken) {
+          await sleep(this.anim.reduced ? 100 : 250);
+          await this.anim.hopToken(victimToken, victimToken.position.clone(), this.s3.tokenPosition(victimToken, 1), { height: 1.2, duration: 0.5 });
+          victimToken.userData.tile = 1;
+        }
       }
 
       if (res.won) {

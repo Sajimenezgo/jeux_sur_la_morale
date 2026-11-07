@@ -109,19 +109,19 @@ input[type='text']:focus { border-color: var(--cyan); outline: none; box-shadow:
 #qr svg { width: 100%; height: 100%; display: block; }
 .room-code { font-family: var(--font-mono); font-weight: 800; font-size: 2.6rem; letter-spacing: 0.18em; color: var(--amber); line-height: 1; text-shadow: 0 0 24px rgba(251, 191, 36, 0.35); }
 .join-url { font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-dim); word-break: break-all; margin-top: 8px; }
-.slots { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; max-height: 48vh; overflow-y: auto; padding-right: 4px; }
 .slot {
-  display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 12px; min-height: 64px;
-  border: 1px dashed var(--grid); color: var(--text-dim); font-size: 0.9rem; position: relative; overflow: hidden;
+  display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 10px; min-height: 52px;
+  border: 1px dashed var(--grid); color: var(--text-dim); font-size: 0.85rem; position: relative; overflow: hidden;
 }
 .slot.filled { border-style: solid; border-color: var(--c, var(--cyan)); background: rgba(255, 255, 255, 0.03); color: var(--text); }
 .slot .av {
-  width: 40px; height: 40px; border-radius: 50%; flex: none; display: grid; place-items: center;
-  border: 2px solid var(--c, var(--grid)); color: var(--c, var(--text-dim)); font: 700 1.2rem var(--font-mono); background: #0b1330; overflow: hidden;
+  width: 34px; height: 34px; border-radius: 50%; flex: none; display: grid; place-items: center;
+  border: 2px solid var(--c, var(--grid)); color: var(--c, var(--text-dim)); font: 700 1.1rem var(--font-mono); background: #0b1330; overflow: hidden;
 }
 .slot .av img { width: 100%; height: 100%; object-fit: cover; }
 .slot .nm { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.slot .st { font: 0.68rem var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); }
+.slot .st { font: 0.65rem var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); }
 .slot.ready .st { color: var(--lime); }
 .slot.off { opacity: 0.5; }
 .lobby-actions { display: flex; gap: 10px; margin-top: auto; align-items: center; }
@@ -133,11 +133,11 @@ input[type='text']:focus { border-color: var(--cyan); outline: none; box-shadow:
 #hud > * { pointer-events: auto; }
 .hud-top { position: absolute; left: 20px; top: 20px; padding: 12px 16px; display: flex; align-items: center; gap: 18px; }
 .chip { font: 700 0.85rem var(--font-mono); letter-spacing: 0.12em; color: var(--amber); padding: 4px 10px; border: 1px solid rgba(251, 191, 36, 0.4); border-radius: 8px; }
-.players { position: absolute; right: 20px; top: 20px; width: 270px; padding: 10px; display: grid; gap: 8px; }
-.pcard { display: grid; grid-template-columns: 38px 1fr auto; gap: 10px; align-items: center; padding: 8px; border-radius: 10px; border: 1px solid transparent; transition: background .25s, border-color .25s; }
-.pcard .av { width: 38px; height: 38px; border-radius: 50%; border: 2px solid var(--c); display: grid; place-items: center; font: 700 1.05rem var(--font-mono); color: var(--c); background: #0b1330; overflow: hidden; }
+.players { position: absolute; right: 20px; top: 20px; width: 280px; max-height: calc(100vh - 40px); overflow-y: auto; padding: 10px; display: grid; gap: 6px; }
+.pcard { display: grid; grid-template-columns: 34px 1fr auto; gap: 8px; align-items: center; padding: 6px 8px; border-radius: 10px; border: 1px solid transparent; transition: background .25s, border-color .25s; }
+.pcard .av { width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--c); display: grid; place-items: center; font: 700 1rem var(--font-mono); color: var(--c); background: #0b1330; overflow: hidden; }
 .pcard .av img { width: 100%; height: 100%; object-fit: cover; }
-.pcard .nm { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pcard .nm { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.88rem; }
 .pcard .sub { font: 0.68rem var(--font-mono); color: var(--text-dim); }
 .pcard .pos { font: 700 1.3rem var(--font-mono); color: var(--c); }
 .pcard.turn { background: rgba(255, 255, 255, 0.06); border-color: var(--c); box-shadow: 0 0 18px -4px var(--c); }

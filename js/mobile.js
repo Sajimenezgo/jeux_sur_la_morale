@@ -185,8 +185,10 @@ const app = {
     big.textContent = String(r.dice);
     big.hidden = false;
     const j = r.jump;
+    const bumpMsg = r.bumped ? (r.bumped.playerId === this.myId ? ` ¡${r.playerId === this.myId ? 'Te' : 'Fueron'} desplazado a la casilla 1!` : ` ¡${r.bumped.name} fue desplazado a la casilla 1!`) : '';
     $('play-status').textContent = r.forfeited ? 'Tres seises seguidos: pierdes el turno.'
       : j ? (j.kind === 'ladder' ? `¡Escalera! ${j.label}` : `¡Serpiente! ${j.label}`)
+        : r.bumped ? `¡Casilla ocupada!${bumpMsg}`
         : r.extraTurn ? '¡Un 6! Repites turno.' : 'Mira la pantalla…';
     clearTimeout(this.resultTimer);
     this.resultTimer = setTimeout(() => { big.hidden = true; }, 4000);

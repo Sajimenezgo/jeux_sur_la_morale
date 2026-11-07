@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { tileToXZ, tileToPosition, resolveJump, Game, GameError } from '../js/game.js';
-import { BOARD, LADDERS, SNAKES, GAME } from '../js/config.js';
+import { BOARD, LADDERS, SNAKES, GAME, CHARACTERS } from '../js/config.js';
 
 const PITCH = BOARD.tileSize + BOARD.gap;
 const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, `${a} !~ ${b}`);
@@ -188,8 +188,8 @@ test('validaciones: duplicados, personaje repetido/inválido, lleno, inicio', ()
   assert.throws(() => g.setReady('zz', true), (e) => e.code === 'unknown_player');
   assert.throws(() => g.roll('a'), (e) => e.code === 'not_playing');
 
-  const ids = ['mlengineer', 'statistician', 'analyst', 'engineer', 'auditor'];
-  ids.forEach((c, i) => g.addPlayer({ id: `x${i}`, name: c, characterId: c }));
+  const remainingChars = CHARACTERS.filter((c) => c.id !== 'scientist');
+  remainingChars.forEach((c, i) => g.addPlayer({ id: `x${i}`, name: c.name, characterId: c.id }));
   assert.equal(g.state.players.length, GAME.maxPlayers);
   assert.throws(() => g.addPlayer({ id: 'extra', name: 'E', characterId: 'scientist' }), (e) => e.code === 'lobby_full');
 });
@@ -286,4 +286,52 @@ test('interactiveChallenges: serpiente 27→5 (acierto se salva, fallo cae a 5)'
   assert.equal(resFall.final, 5);
   assert.equal(gFall.state.players[0].position, 5);
 });
+
+test('regla de desplazamiento: ficha que llega a casilla ocupada envía la anterior a casilla 1', () => {
+  const g = setup(dice(3, 3));
+  place(g, 'p0', 5);
+  place(g, 'p1', 2); // p1 tirará 3 y aterrizará en casilla 5 donde está p0
+
+  // Turno de p0 (hace roll y avanza 5+3=8)
+  g.roll('p0');
+  assert.equal(g.state.players[0].position, 8);
+  assert.equal(g.state.turnPlayerId, 'p1');
+
+  // Ahora p1 está en 2, p0 está en 8.
+  // Colocamos p0 en 5 y p1 en 2
+  place(g, 'p0', 5);
+  place(g, 'p1', 2);
+  const r = g.roll('p1'); // 2 + 3 = 5 (ocupada por p0)
+
+  assert.equal(r.landed, 5);
+  assert.equal(r.final, 5);
+  assert.equal(g.state.players[1].position, 5); // p1 ocupa la casilla 5
+  assert.equal(g.state.players[0].position, 1); // p0 es desplazado y reinicia en 1
+  assert.deepEqual(r.bumped, { playerId: 'p0', name: 'P0', from: 5, to: 1 });
+});
+
+test('regla de desplazamiento tras resolver desafío ético', () => {
+  const g = new Game({ rng: dice(4), interactiveChallenges: true });
+  g.addPlayer({ id: 'p0', name: 'A', characterId: 'scientist' });
+  g.addPlayer({ id: 'p1', name: 'B', characterId: 'engineer' });
+  g.setReady('p0', true);
+  g.setReady('p1', true);
+  g.start();
+
+  // p1 está colocado en la casilla 25 (destino de la escalera 4->25)
+  place(g, 'p1', 25);
+
+  // p0 tira 4 desde 0 y cae en la escalera 4
+  g.roll('p0');
+  assert.equal(g.state.phase, 'challenge');
+
+  // p0 supera la validación ética -> sube a 25 y desplaza a p1 a casilla 1
+  const res = g.resolveChallenge('p0', true);
+  assert.equal(res.outcome, 'climb');
+  assert.equal(res.final, 25);
+  assert.equal(g.state.players[0].position, 25);
+  assert.equal(g.state.players[1].position, 1); // p1 reiniciado en casilla 1
+  assert.deepEqual(res.bumped, { playerId: 'p1', name: 'B', from: 25, to: 1 });
+});
+
 

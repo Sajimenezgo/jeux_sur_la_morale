@@ -417,7 +417,12 @@ export class Scene3D {
   // ── Tokens ────────────────────────────────────────────────────────────────
   /** Desplazamiento de la ficha dentro de la casilla (evita solaparse). */
   _slotOffset(index) {
-    const slots = [[-0.2, -0.18], [0.2, -0.18], [-0.2, 0.2], [0.2, 0.2], [0, -0.02], [0, 0.3]];
+    const slots = [
+      [-0.22, -0.22], [0.22, -0.22], [-0.22, 0.22], [0.22, 0.22],
+      [0, -0.24], [0, 0.24], [-0.24, 0], [0.24, 0],
+      [0, 0], [-0.12, -0.12], [0.12, -0.12], [-0.12, 0.12],
+      [0.12, 0.12], [-0.12, 0.22], [0.12, -0.22],
+    ];
     const [x, z] = slots[index % slots.length];
     return new THREE.Vector3(x, 0, z);
   }

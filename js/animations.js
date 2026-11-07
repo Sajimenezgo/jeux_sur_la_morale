@@ -107,15 +107,27 @@ export class Animator {
   }
 
   /**
-   * Lanza el dado 3D y lo asienta mostrando `value` arriba. Resuelve tras una breve pausa.
-   * El giro final es spin(eje, ángulo→0) · qFinal: converge exactamente a la orientación objetivo.
+   * Lanza el o los dados 3D y los asienta mostrando `value` arriba.
+   * Si `value` es un array [d1, d2], anima ambos dados simultáneamente.
    */
   rollDice(value) {
-    const dice = this.s3.dice, rest = this.s3.diceRest;
-    const qFinal = new THREE.Quaternion().setFromUnitVectors(DICE_FACE_NORMAL[value], UP)
+    if (Array.isArray(value)) {
+      if (value.length === 1) return this._rollSingleDice(this.s3.dice, this.s3.diceRest, value[0], 0);
+      return Promise.all([
+        this._rollSingleDice(this.s3.dice, this.s3.diceRest, value[0], -0.6),
+        this._rollSingleDice(this.s3.dice2, this.s3.dice2Rest, value[1], 0.6),
+      ]);
+    }
+    return this._rollSingleDice(this.s3.dice, this.s3.diceRest, value, 0);
+  }
+
+  _rollSingleDice(dice, rest, value, lateralOffset = 0) {
+    if (!dice || !rest) return Promise.resolve();
+    const clamped = Math.min(6, Math.max(1, value || 1));
+    const qFinal = new THREE.Quaternion().setFromUnitVectors(DICE_FACE_NORMAL[clamped], UP)
       .premultiply(new THREE.Quaternion().setFromAxisAngle(UP, Math.random() * TAU));
     gsap.killTweensOf(dice.position); gsap.killTweensOf(dice.scale);
-    dice.userData.value = value;
+    dice.userData.value = clamped;
     if (this.reduced) {
       dice.position.copy(rest);
       dice.quaternion.copy(qFinal);
@@ -125,7 +137,7 @@ export class Animator {
     }
     const axis = new THREE.Vector3(Math.random() - 0.5, Math.random() * 0.6 + 0.3, Math.random() - 0.5).normalize();
     const spins = 3 + Math.random() * 2; // vueltas totales
-    const from = new THREE.Vector3(rest.x - 2.2, 4.8, rest.z + 3.2);
+    const from = new THREE.Vector3(rest.x - 2.2, 4.8, rest.z + 3.2 + lateralOffset);
     const k = { s: 0, bounce: 0 };
     const qSpin = new THREE.Quaternion();
     return new Promise((resolve) => {

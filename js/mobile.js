@@ -182,14 +182,17 @@ const app = {
   onRolled(r) {
     vibrate([60, 40, 120]);
     const big = $('result-big');
-    big.textContent = String(r.dice);
+    const isTwo = r.diceValues && r.diceValues.length === 2;
+    big.textContent = isTwo ? `${r.dice}` : String(r.dice);
     big.hidden = false;
     const j = r.jump;
     const bumpMsg = r.bumped ? (r.bumped.playerId === this.myId ? ` ¡${r.playerId === this.myId ? 'Te' : 'Fueron'} desplazado a la casilla 1!` : ` ¡${r.bumped.name} fue desplazado a la casilla 1!`) : '';
-    $('play-status').textContent = r.forfeited ? 'Tres seises seguidos: pierdes el turno.'
-      : j ? (j.kind === 'ladder' ? `¡Escalera! ${j.label}` : `¡Serpiente! ${j.label}`)
+    const extraMsg = isTwo ? `¡Dobles (${r.diceValues[0]}+${r.diceValues[1]})! Repites turno.` : '¡Un 6! Repites turno.';
+    const rollDesc = isTwo ? `Sacaste ${r.dice} (${r.diceValues[0]}+${r.diceValues[1]}). ` : '';
+    $('play-status').textContent = r.forfeited ? 'Tres turnos extra seguidos: pierdes el turno.'
+      : j ? (j.kind === 'ladder' ? `${rollDesc}¡Escalera! ${j.label}` : `${rollDesc}¡Serpiente! ${j.label}`)
         : r.bumped ? `¡Casilla ocupada!${bumpMsg}`
-        : r.extraTurn ? '¡Un 6! Repites turno.' : 'Mira la pantalla…';
+        : r.extraTurn ? extraMsg : (isTwo ? `Sacaste ${r.dice} (${r.diceValues[0]}+${r.diceValues[1]}). Mira la pantalla…` : 'Mira la pantalla…');
     clearTimeout(this.resultTimer);
     this.resultTimer = setTimeout(() => { big.hidden = true; }, 4000);
   },
@@ -417,29 +420,27 @@ const app = {
     if (st.phase === 'playing' && me) {
       this.meCard($('me-card2'));
       const mine = st.turnPlayerId === me.id;
+      const isTwo = st.diceCount >= 2;
       const btn = $('roll-btn');
+      btn.innerHTML = isTwo ? 'LANZAR<br>DADOS' : 'LANZAR<br>DADO';
       btn.disabled = !mine || this.rollLocked;
       if (mine && !this.wasMyTurn) vibrate([200, 80, 200]);
       this.wasMyTurn = mine;
       const tp = st.players.find((p) => p.id === st.turnPlayerId);
-      if (mine) $('play-status').textContent = '¡Es tu turno!';
+      if (mine) $('play-status').textContent = isTwo ? '¡Es tu turno! Tiras 2 dados.' : '¡Es tu turno!';
       else if (!$('result-big').hidden) { /* conserva el mensaje del resultado */ } else $('play-status').textContent = tp ? `Turno de ${tp.name}…` : '';
       this.show('s-play');
       return;
     }
     if (st.phase === 'challenge' && me) {
-      if (st.pendingChallenge?.playerId === me.id) {
-        // El jugador activo está en el reto
-        if (!$('s-challenge').hidden) return;
-      } else {
-        this.meCard($('me-card2'));
-        const btn = $('roll-btn');
-        btn.disabled = true;
-        const tp = st.players.find((p) => p.id === st.pendingChallenge?.playerId);
-        $('play-status').textContent = tp ? `${tp.name} está en validación ética…` : 'Validación ética en curso…';
-        this.show('s-play');
-        return;
-      }
+      if (!$('s-challenge').hidden) return;
+      this.meCard($('me-card2'));
+      const btn = $('roll-btn');
+      btn.disabled = true;
+      const tp = st.players.find((p) => p.id === st.pendingChallenge?.playerId);
+      $('play-status').textContent = tp ? `${tp.name} está en validación ética…` : 'Validación ética en curso…';
+      this.show('s-play');
+      return;
     }
     // finished o espectador
     const w = st.players.find((p) => p.id === st.winnerId);

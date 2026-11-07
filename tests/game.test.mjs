@@ -400,4 +400,67 @@ test('desafío ético grupal: escalera y serpiente según acierto o fallo del co
   assert.equal(gSnk.state.players[0].position, 5);
 });
 
+test('regla de 2 dados: se activa con >= 10 jugadores y tira 2 dados', () => {
+  const g = new Game();
+  for (let i = 0; i < 9; i++) {
+    g.addPlayer({ id: `p${i}`, name: `P${i}`, characterId: CHARACTERS[i].id });
+  }
+  assert.equal(g.diceCount, 1);
+  assert.equal(g.state.diceCount, 1);
+
+  // Al añadir el décimo jugador se activa el segundo dado
+  g.addPlayer({ id: 'p9', name: 'P9', characterId: CHARACTERS[9].id });
+  assert.equal(g.diceCount, 2);
+  assert.equal(g.state.diceCount, 2);
+
+  // Iniciar partida con 10 jugadores
+  for (let i = 0; i < 10; i++) g.setReady(`p${i}`, true);
+  g.start();
+
+  // Tirar con 2 dados inyectando 3 y 4 (suma 7)
+  let rollIdx = 0;
+  const seq = [3, 4];
+  g._rng = () => (seq[rollIdx++] - 1) / 6 + 0.01;
+
+  const r = g.roll('p0');
+  assert.equal(r.diceValues.length, 2);
+  assert.deepEqual(r.diceValues, [3, 4]);
+  assert.equal(r.dice, 7);
+  assert.equal(r.landed, 7);
+  assert.equal(r.final, 7);
+  assert.equal(r.extraTurn, false); // 3 != 4 -> no dobles
+});
+
+test('regla de 2 dados: dobles otorgan turno extra y 3 dobles seguidos pierden turno', () => {
+  const g = new Game();
+  for (let i = 0; i < 10; i++) {
+    g.addPlayer({ id: `p${i}`, name: `P${i}`, characterId: CHARACTERS[i].id });
+    g.setReady(`p${i}`, true);
+  }
+  g.start();
+
+  // Secuencia de dobles: (5,5), (2,2), (4,4)
+  const seq = [5, 5, 2, 2, 4, 4];
+  let rollIdx = 0;
+  g._rng = () => (seq[rollIdx++] - 1) / 6 + 0.01;
+
+  // 1er doble (5,5) = 10 -> extra turn
+  const r1 = g.roll('p0');
+  assert.equal(r1.dice, 10);
+  assert.equal(r1.extraTurn, true);
+  assert.equal(g.state.turnPlayerId, 'p0');
+
+  // 2do doble (2,2) = 4 -> extra turn
+  const r2 = g.roll('p0');
+  assert.equal(r2.dice, 4);
+  assert.equal(r2.extraTurn, true);
+  assert.equal(g.state.turnPlayerId, 'p0');
+
+  // 3er doble (4,4) -> pierde el turno por exceso de turnos extra
+  const r3 = g.roll('p0');
+  assert.equal(r3.forfeited, true);
+  assert.equal(r3.extraTurn, false);
+  assert.equal(g.state.turnPlayerId, 'p1'); // avanza al siguiente jugador
+});
+
 

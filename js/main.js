@@ -352,18 +352,30 @@ class HostApp {
     clearTimeout(this.autoStart);
     const color = player.color;
     this.s3.clearHighlights();
+    this.s3.setDiceCount(this.game.diceCount);
     $('dice-num').textContent = '?';
-    this.log(`${player.name} lanza el dado…`, '', null, color);
+    const isTwoDice = r.diceValues && r.diceValues.length === 2;
+    this.log(`${player.name} lanza ${isTwoDice ? 'los dados' : 'el dado'}…`, '', null, color);
     if (token) this.anim.focusCamera({ x: this.s3._center.x + (token.position.x - this.s3._center.x) * 0.35, z: this.s3._center.z + (token.position.z - this.s3._center.z) * 0.35 }, { duration: 0.8 });
 
     try {
-    await this.anim.rollDice(r.dice);
-    $('dice-num').textContent = String(r.dice);
-    this.net?.send(playerId, { t: MSG.ROLLED, result: r });
-    this.log(`${player.name} sacó ${r.dice}`, '', null, color);
+    if (isTwoDice) {
+      await this.anim.rollDice(r.diceValues);
+      $('dice-num').textContent = String(r.dice);
+      $('dice-num').title = `${r.diceValues[0]} + ${r.diceValues[1]}`;
+      this.net?.send(playerId, { t: MSG.ROLLED, result: r });
+      const doublesMsg = r.extraTurn ? ' · ¡Dobles! Repite turno' : '';
+      this.log(`${player.name} sacó ${r.dice} (${r.diceValues[0]}+${r.diceValues[1]})${doublesMsg}`, '', null, color);
+    } else {
+      await this.anim.rollDice(r.dice);
+      $('dice-num').textContent = String(r.dice);
+      $('dice-num').title = '';
+      this.net?.send(playerId, { t: MSG.ROLLED, result: r });
+      this.log(`${player.name} sacó ${r.dice}`, '', null, color);
+    }
 
     if (r.forfeited) {
-      this.log(`${player.name}: tres seises seguidos, pierde el turno`, '', null, color);
+      this.log(`${player.name}: tres turnos extra seguidos, pierde el turno`, '', null, color);
       await sleep(900);
     } else if (token) {
       if (r.path.length) await this.anim.moveAlongPath(token, r.path);

@@ -143,7 +143,7 @@ input[type='text']:focus { border-color: var(--cyan); outline: none; box-shadow:
 .pcard.turn { background: rgba(255, 255, 255, 0.06); border-color: var(--c); box-shadow: 0 0 18px -4px var(--c); }
 .pcard.off { opacity: 0.45; }
 .dice-panel { position: absolute; left: 20px; bottom: 20px; padding: 14px 18px; display: flex; align-items: center; gap: 16px; }
-.dice-num { font: 800 2.8rem var(--font-mono); color: var(--amber); width: 64px; height: 64px; display: grid; place-items: center; border: 1px solid rgba(251, 191, 36, 0.5); border-radius: 12px; text-shadow: 0 0 18px rgba(251, 191, 36, 0.5); }
+.dice-num { font: 800 2.4rem var(--font-mono); color: var(--amber); min-width: 64px; width: auto; height: 64px; padding: 0 10px; box-sizing: border-box; display: grid; place-items: center; border: 1px solid rgba(251, 191, 36, 0.5); border-radius: 12px; text-shadow: 0 0 18px rgba(251, 191, 36, 0.5); }
 .turn-label { font-size: 1.15rem; font-weight: 700; }
 .log {
   position: absolute; right: 20px; bottom: 20px; width: min(360px, 40vw); max-height: 34dvh; padding: 12px 14px;

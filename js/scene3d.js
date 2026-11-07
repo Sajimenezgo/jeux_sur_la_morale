@@ -126,7 +126,12 @@ export class Scene3D {
     this.onProgress = onProgress || (() => {});
     this.tokens = new Map();
     this.dice = null;
+    this.dice2 = null;
     this.diceRest = new THREE.Vector3(7.3, 0.55, 0.5);
+    this.dice2Rest = new THREE.Vector3(7.3, 0.55, 1.8);
+    this.ring1 = null;
+    this.ring2 = null;
+    this.diceCount = 1;
     this.linkCurves = new Map();
     this.camera = null; this.renderer = null; this.scene = null; this.controls = null;
     this._listeners = new Map();
@@ -380,25 +385,71 @@ export class Scene3D {
     dice.castShadow = true;
     dice.position.copy(this.diceRest);
     dice.userData.value = 1;
-    this.setDiceValue(1);
+    this.setDiceValue(1, 0.4, dice);
     this.scene.add(dice);
 
-    // Pad luminoso bajo el dado
-    const ring = new THREE.Mesh(
+    // Segundo dado (para >= 10 jugadores)
+    const dice2 = this.dice2 = new THREE.Mesh(geo, mat);
+    dice2.castShadow = true;
+    dice2.position.copy(this.dice2Rest);
+    dice2.userData.value = 1;
+    dice2.visible = false;
+    this.setDiceValue(1, 0.2, dice2);
+    this.scene.add(dice2);
+
+    // Pad luminoso bajo el dado 1
+    const ring1 = this.ring1 = new THREE.Mesh(
       this._track(new THREE.RingGeometry(0.85, 0.95, 48)),
       this._track(new THREE.MeshBasicMaterial({ color: THEME.amber, transparent: true, opacity: 0.55, side: THREE.DoubleSide })),
     );
-    ring.rotation.x = -Math.PI / 2;
-    ring.position.set(this.diceRest.x, -0.4, this.diceRest.z);
-    this.scene.add(ring);
+    ring1.rotation.x = -Math.PI / 2;
+    ring1.position.set(this.diceRest.x, -0.4, this.diceRest.z);
+    this.scene.add(ring1);
+
+    // Pad luminoso bajo el dado 2
+    const ring2 = this.ring2 = new THREE.Mesh(
+      this._track(new THREE.RingGeometry(0.85, 0.95, 48)),
+      this._track(new THREE.MeshBasicMaterial({ color: THEME.amber, transparent: true, opacity: 0.55, side: THREE.DoubleSide })),
+    );
+    ring2.rotation.x = -Math.PI / 2;
+    ring2.position.set(this.dice2Rest.x, -0.4, this.dice2Rest.z);
+    ring2.visible = false;
+    this.scene.add(ring2);
+  }
+
+  /** Activa o desactiva la presencia del segundo dado en el tablero 3D. */
+  setDiceCount(count) {
+    this.diceCount = count >= 2 ? 2 : 1;
+    if (this.diceCount === 2) {
+      this.diceRest.set(7.3, 0.55, -0.2);
+      this.dice2Rest.set(7.3, 0.55, 1.2);
+      if (this.dice) this.dice.position.copy(this.diceRest);
+      if (this.dice2) {
+        this.dice2.position.copy(this.dice2Rest);
+        this.dice2.visible = true;
+      }
+      if (this.ring1) this.ring1.position.set(this.diceRest.x, -0.4, this.diceRest.z);
+      if (this.ring2) {
+        this.ring2.position.set(this.dice2Rest.x, -0.4, this.dice2Rest.z);
+        this.ring2.visible = true;
+      }
+    } else {
+      this.diceRest.set(7.3, 0.55, 0.5);
+      if (this.dice) this.dice.position.copy(this.diceRest);
+      if (this.dice2) this.dice2.visible = false;
+      if (this.ring1) this.ring1.position.set(this.diceRest.x, -0.4, this.diceRest.z);
+      if (this.ring2) this.ring2.visible = false;
+    }
   }
 
   /** Orienta el dado mostrando `value` arriba (con giro yaw opcional). */
-  setDiceValue(value, yaw = 0.4) {
-    const q = new THREE.Quaternion().setFromUnitVectors(DICE_FACE_NORMAL[value], new THREE.Vector3(0, 1, 0));
+  setDiceValue(value, yaw = 0.4, targetDice = this.dice) {
+    if (!targetDice) return;
+    const clamped = Math.min(6, Math.max(1, value || 1));
+    const q = new THREE.Quaternion().setFromUnitVectors(DICE_FACE_NORMAL[clamped], new THREE.Vector3(0, 1, 0));
     const qy = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
-    this.dice.quaternion.copy(qy.multiply(q));
-    this.dice.userData.value = value;
+    targetDice.quaternion.copy(qy.multiply(q));
+    targetDice.userData.value = clamped;
   }
 
   _buildStarfield() {

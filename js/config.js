@@ -7,6 +7,7 @@ export const GAME = Object.freeze({
   version: '0.1.0',
   maxPlayers: 15,
   minPlayers: 2,
+  twoDiceThreshold: 10,
   peerPrefix: 'gradient-ladders-', // peerId = prefix + ROOM CODE (4 chars)
   roomCodeAlphabet: 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789',
   roomCodeLength: 4,

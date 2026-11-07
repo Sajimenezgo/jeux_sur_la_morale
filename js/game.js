@@ -224,10 +224,16 @@ export class Game {
     this._emit('turn', { playerId: this._players[0].id, turnNumber: 1, extra: false });
   }
 
+  /** Número de dados: 2 si hay >= GAME.twoDiceThreshold (10) jugadores, sino 1. */
+  get diceCount() {
+    return this._players.length >= GAME.twoDiceThreshold ? 2 : 1;
+  }
+
   /**
-   * Tira el dado para `playerId`.
+   * Tira el/los dado(s) para `playerId`.
+   * Con >= 10 jugadores tira 2 dados (suma de ambos; dobles otorgan turno extra).
    * @param {string} playerId
-   * @returns {{playerId:string, dice:number, from:number, path:number[], landed:number,
+   * @returns {{playerId:string, dice:number, diceValues:number[], from:number, path:number[], landed:number,
    *   jump:{from:number,to:number,kind:string,label:string}|null, final:number,
    *   extraTurn:boolean, won:boolean, bounced:boolean, forfeited:boolean}}
    * @throws {GameError} si no es la fase o el turno
@@ -238,12 +244,22 @@ export class Game {
     if (!this._players.some((p) => p.id === playerId)) throw new GameError('unknown_player', `Jugador desconocido: ${playerId}`);
     if (player.id !== playerId) throw new GameError('not_your_turn', 'No es tu turno');
 
-    const dice = Math.min(6, Math.max(1, Math.floor(this._rng() * 6) + 1));
+    const count = this.diceCount;
+    const diceValues = [];
+    let dice = 0;
+    for (let d = 0; d < count; d++) {
+      const val = Math.min(6, Math.max(1, Math.floor(this._rng() * 6) + 1));
+      diceValues.push(val);
+      dice += val;
+    }
+
     const from = player.position;
-    this._sixes = dice === 6 ? this._sixes + 1 : 0;
+    // Turno extra: con 1 dado sacar 6. Con 2 dados sacar dobles (d1 === d2).
+    const isExtraRoll = count === 2 ? (diceValues[0] === diceValues[1]) : (dice === 6);
+    this._sixes = isExtraRoll ? this._sixes + 1 : 0;
 
     const result = {
-      playerId, dice, from, path: [], landed: from, jump: null, final: from,
+      playerId, dice, diceValues, from, path: [], landed: from, jump: null, final: from,
       extraTurn: false, won: false, bounced: false, forfeited: false,
     };
 
@@ -273,7 +289,7 @@ export class Game {
       } else {
         result.final = j.to;
         result.won = result.final === last;
-        result.extraTurn = dice === 6 && !result.won;
+        result.extraTurn = isExtraRoll && !result.won;
       }
     }
 
@@ -307,9 +323,10 @@ export class Game {
         playerId,
         jump: result.jump,
         dice: result.dice,
-        extraTurn: result.dice === 6,
+        diceValues: result.diceValues,
+        extraTurn: isExtraRoll,
       };
-      this._emit('challenge', { playerId, jump: result.jump, dice: result.dice, extraTurn: result.dice === 6 });
+      this._emit('challenge', { playerId, jump: result.jump, dice: result.dice, diceValues: result.diceValues, extraTurn: isExtraRoll });
       return result;
     }
 
@@ -410,6 +427,7 @@ export class Game {
       players: this._players.map((p) => this._pub(p)),
       turnPlayerId: turnPlayer ? turnPlayer.id : null,
       turnNumber: this._turnNumber,
+      diceCount: this.diceCount,
       lastRoll: this._lastRoll ? { ...this._lastRoll, path: [...this._lastRoll.path] } : null,
       pendingChallenge: this._pendingChallenge ? { ...this._pendingChallenge } : null,
       winnerId: this._winnerId,

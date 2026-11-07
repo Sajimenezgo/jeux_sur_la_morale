@@ -4,6 +4,7 @@ import { GAME, CHARACTERS, THEME } from './config.js';
 import { Game } from './game.js';
 import { HostNetwork, MSG } from './network.js';
 import { loadIceServers } from './ice.js';
+import { resolvePeerClass } from './supabase_peer.js';
 import { Scene3D } from './scene3d.js';
 import { Animator } from './animations.js';
 
@@ -72,7 +73,9 @@ class HostApp {
     $('net-status').textContent = 'Abriendo sala…';
     this.renderLobby();
     try {
-      this.net = new HostNetwork({ iceServers: await loadIceServers() });
+      const { Peer, transport } = await resolvePeerClass();
+      console.info('[net] transporte:', transport);
+      this.net = new HostNetwork({ Peer, iceServers: transport === 'peerjs' ? await loadIceServers() : undefined });
       this.wireNet();
       this.roomCode = await this.net.open();
       this.showRoom(this.roomCode);

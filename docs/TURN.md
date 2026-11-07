@@ -1,4 +1,8 @@
-# Conectar móviles en 4G/5G: servidor TURN
+# Conectar móviles en 4G/5G: servidor TURN (solo para el modo PeerJS)
+
+> **Desde la v0.2 el transporte por defecto es Supabase Realtime** (`js/supabase_peer.js`, `config/supabase.json`),
+> que funciona en cualquier red sin TURN. Este documento solo aplica si se fuerza `?transport=peerjs` o se
+> elimina `config/supabase.json`.
 
 WebRTC conecta móvil y pantalla **directamente**. En la misma red Wi-Fi basta con STUN. Un móvil con datos
 móviles (4G/5G) suele estar tras un NAT simétrico y la conexión directa falla: la app muestra

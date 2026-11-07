@@ -45,6 +45,9 @@ export class Game {
 - `state` snapshot: `{ phase, players:[{id,name,characterId,color,position,ready,connected}], turnPlayerId, turnNumber, lastRoll, winnerId, version }`.
 - Puro y determinista con `rng` inyectable. Tests en `tests/game.test.mjs` (Node `node:test`): serpentina, escaleras, snakes, rebote, 6 extra, victoria, turnos, validaciones.
 
+## Transporte
+Por defecto **Supabase Realtime** (Broadcast + Presence): `js/supabase_peer.js` exporta `makeSupabasePeer()`, una clase con la superficie de PeerJS que `network.js` consume sin cambios; `resolvePeerClass()` elige Supabase si hay `config/supabase.json` + librería, y si no PeerJS (WebRTC; `?transport=peerjs` lo fuerza). Un canal `gl:<peerId>` por sala; protocolo `open/accept/data/close`. La existencia de la sala se decide por el apretón `open/accept` (la presencia es eventualmente consistente, solo detecta caídas). La clave publicable de `config/supabase.json` es pública por diseño; el host sigue siendo la autoridad y valida todo.
+
 ## network.js (PeerJS)
 Topología: el HOST es la autoridad y crea el `Peer` con id `GAME.peerPrefix + CODE`. Los móviles se conectan con `peer.connect(hostId, {reliable:true})`.
 ```js

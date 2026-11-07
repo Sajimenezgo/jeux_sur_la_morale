@@ -2,6 +2,7 @@
 import { CHARACTERS, GAME } from './config.js';
 import { ClientNetwork, MSG, sanitizeName } from './network.js';
 import { loadIceServers } from './ice.js';
+import { resolvePeerClass } from './supabase_peer.js';
 
 const $ = (id) => document.getElementById(id);
 const charOf = (id) => CHARACTERS.find((c) => c.id === id);
@@ -71,7 +72,9 @@ const app = {
     store.set('gl.name', name);
     $('join-btn').disabled = true;
     this.setConn('wait', 'Conectando…');
-    const net = this.net = new ClientNetwork({ Peer: globalThis.Peer, name, iceServers: await loadIceServers() });
+    const { Peer, transport } = await resolvePeerClass();
+    console.info('[net] transporte:', transport);
+    const net = this.net = new ClientNetwork({ Peer, name, iceServers: transport === 'peerjs' ? await loadIceServers() : undefined });
     net.on('message', (m) => this.onMessage(m));
     net.on('open', ({ reconnect }) => { this.setConn('ok', 'Conectado'); if (reconnect) vibrate(80); });
     net.on('reconnecting', ({ attempt }) => this.setConn('wait', `Reconectando (${attempt})…`));

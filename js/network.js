@@ -14,6 +14,7 @@ export const ROLL_MIN_INTERVAL_MS = 400;
 export const MSG = Object.freeze({
   HELLO: 'hello', PICK: 'pick', READY: 'ready', ROLL: 'roll', PING: 'ping',
   WELCOME: 'welcome', STATE: 'state', ROLLED: 'rolled', ERROR: 'error', PONG: 'pong',
+  CHALLENGE: 'challenge', ANSWER: 'answer', CHALLENGE_RESULT: 'challenge_result',
 });
 
 /**
@@ -63,6 +64,22 @@ const SCHEMAS = {
   [MSG.ROLLED]: (m) => (isObj(m.result) ? { result: m.result } : undefined),
   [MSG.ERROR]: (m) => (typeof m.code === 'string' && typeof m.message === 'string'
     ? { code: m.code.slice(0, 64), message: m.message.slice(0, 200) } : undefined),
+  [MSG.CHALLENGE]: (m) => (isObj(m.card) && isObj(m.jump) && typeof m.playerId === 'string'
+    ? { playerId: m.playerId, card: m.card, jump: m.jump, timeoutMs: Number(m.timeoutMs) || 30000 } : undefined),
+  [MSG.ANSWER]: (m) => (typeof m.cardId === 'string' && Number.isInteger(m.selectedIndex) && m.selectedIndex >= 0 && m.selectedIndex <= 3
+    ? { cardId: m.cardId, selectedIndex: m.selectedIndex } : undefined),
+  [MSG.CHALLENGE_RESULT]: (m) => (typeof m.playerId === 'string' && typeof m.cardId === 'string' && typeof m.correct === 'boolean' && typeof m.outcome === 'string'
+    ? {
+        playerId: m.playerId,
+        cardId: m.cardId,
+        correct: m.correct,
+        selectedIndex: Number.isInteger(m.selectedIndex) ? m.selectedIndex : -1,
+        correctIndex: Number.isInteger(m.correctIndex) ? m.correctIndex : 0,
+        explanation: String(m.explanation ?? '').slice(0, 500),
+        tip: String(m.tip ?? '').slice(0, 300),
+        outcome: m.outcome,
+        newPosition: Number(m.newPosition) || 0,
+      } : undefined),
 };
 
 /**
@@ -307,7 +324,7 @@ export class HostNetwork extends Emitter {
         this._emit('message', { playerId: ctx.playerId, msg });
         break;
       }
-      case MSG.PICK: case MSG.READY:
+      case MSG.PICK: case MSG.READY: case MSG.ANSWER:
         this._emit('message', { playerId: ctx.playerId, msg });
         break;
       default: this.dropped++; // hello repetido o tipos exclusivos del host

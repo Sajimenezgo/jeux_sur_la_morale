@@ -92,6 +92,30 @@ test('encode/decode/validate: roundtrip y rechazos', () => {
   assert.equal(decode(null), null);
   assert.equal(decode(JSON.stringify([1, 2])), null);
   assert.equal(validate({ t: 'roll', v: 1, extra: 'x' }).msg.extra, undefined);
+  // Nuevos tipos de mensaje para opción 2: Desafíos éticos
+  const ch = encode({
+    t: MSG.CHALLENGE,
+    playerId: 'p1',
+    jump: { from: 4, to: 25, kind: 'ladder', label: 'Limpieza' },
+    card: { id: 'c1', title: 'Test', prompt: 'Q', options: ['A', 'B', 'C', 'D'] },
+    timeoutMs: 30000,
+  });
+  assert.equal(decode(ch).card.id, 'c1');
+  const ans = encode({ t: MSG.ANSWER, cardId: 'c1', selectedIndex: 2 });
+  assert.deepEqual(decode(ans), { t: 'answer', v: 1, cardId: 'c1', selectedIndex: 2 });
+  const res = encode({
+    t: MSG.CHALLENGE_RESULT,
+    playerId: 'p1',
+    cardId: 'c1',
+    correct: true,
+    selectedIndex: 2,
+    correctIndex: 2,
+    explanation: 'Expl',
+    tip: 'Tip',
+    outcome: 'climb',
+    newPosition: 25,
+  });
+  assert.equal(decode(res).outcome, 'climb');
   assert.throws(() => encode({ t: 'pick' }));
   const big = JSON.stringify({ t: 'hello', v: 1, clientId: 'abcdefgh', name: 'x'.repeat(MAX_MESSAGE_BYTES) });
   assert.equal(decode(big), null);

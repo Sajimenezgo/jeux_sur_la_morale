@@ -56,6 +56,27 @@
       <p class="status-line" id="play-status"></p>
     </section>
 
+    <!-- 4b. Desafío Ético (Checkpoint / Quiz) -->
+    <section class="screen" id="s-challenge" hidden style="justify-content:flex-start">
+      <div class="glass me-card" id="me-card3"></div>
+      <div class="challenge-box glass">
+        <div class="challenge-header">
+          <span class="challenge-badge" id="ch-badge">Validación ética</span>
+          <span class="mono dim ch-timer-num" id="ch-timer-num">30s</span>
+        </div>
+        <div class="ch-timer-track"><div class="ch-timer-fill" id="ch-timer-fill"></div></div>
+        <h2 id="ch-title" class="ch-title">Título del reto</h2>
+        <p id="ch-prompt" class="ch-prompt">Enunciado...</p>
+        <div class="ch-options" id="ch-options"></div>
+      </div>
+      <div class="challenge-feedback glass" id="ch-feedback" hidden>
+        <div class="ch-result-header" id="ch-result-header"></div>
+        <p class="ch-explanation" id="ch-explanation"></p>
+        <p class="tip" id="ch-tip"></p>
+        <button class="btn primary" id="ch-continue-btn" style="min-height:48px;width:100%">CONTINUAR</button>
+      </div>
+    </section>
+
     <!-- 5. Fin -->
     <section class="screen" id="s-end" hidden style="text-align:center">
       <p class="eyebrow">Partida terminada</p>

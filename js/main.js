@@ -7,6 +7,7 @@ import { loadIceServers } from './ice.js';
 import { resolvePeerClass } from './supabase_peer.js';
 import { Scene3D } from './scene3d.js';
 import { Animator } from './animations.js';
+import { getChallengeForJump } from './cards.js';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -29,7 +30,7 @@ function avatar(ch, cls = 'av') {
 
 class HostApp {
   constructor() {
-    this.game = new Game();
+    this.game = new Game({ interactiveChallenges: true });
     this.net = null;
     this.s3 = null;
     this.anim = null;
@@ -42,6 +43,10 @@ class HostApp {
     this.linkCards = null;
     this.lessonTimer = 0;
     this.roomCode = null;
+    this.usedCardIds = new Set();
+    this.currentChallenge = null;
+    this.challengeTimer = null;
+    this.botTimer = null;
   }
 
   async init() {
@@ -271,6 +276,7 @@ class HostApp {
           return;
         }
         case MSG.ROLL: return this.onRoll(playerId);
+        case MSG.ANSWER: return this.onAnswer(playerId, msg);
         default: return;
       }
     } catch (err) {
@@ -360,6 +366,12 @@ class HostApp {
       if (r.path.length) await this.anim.moveAlongPath(token, r.path);
       if (r.bounced) this.log(`${player.name} rebota en la meta (tirada exacta)`, '', null, color);
       this.s3.highlightTile(r.landed, THEME.cyan);
+
+      if (r.pendingChallenge) {
+        await this.presentChallenge(player, token, r);
+        return;
+      }
+
       if (r.jump) {
         const lad = r.jump.kind === 'ladder';
         this.log(`${player.name} ${lad ? 'sube' : 'cae'} ${r.jump.from}→${r.jump.to}:`, lad ? 'ladder' : 'snake', r.jump.label);
@@ -385,6 +397,221 @@ class HostApp {
     this.publish();
     if (st.phase === 'finished') this.showVictory(st);
     else {
+      const next = st.players.find((p) => p.id === st.turnPlayerId);
+      if (next) this.anim.focusCamera(this.s3._center, { duration: 1.0 });
+      this.maybeAutoplay();
+    }
+  }
+
+  async presentChallenge(player, token, r) {
+    const isLadder = r.jump.kind === 'ladder';
+    const card = getChallengeForJump(r.jump.kind, r.jump.from, this.usedCardIds);
+    this.usedCardIds.add(card.id);
+
+    this.currentChallenge = {
+      playerId: player.id,
+      card,
+      jump: r.jump,
+      token,
+      dice: r.dice,
+      extraTurn: r.dice === 6,
+      answered: false,
+    };
+
+    // 1. Mostrar en pantalla Host
+    const modal = $('challenge-modal');
+    modal.className = `challenge-modal glass ${isLadder ? 'ladder' : 'snake'}`;
+    const badge = $('ch-host-badge');
+    badge.className = `ch-host-badge ${isLadder ? 'ch-badge-ladder' : 'ch-badge-snake'}`;
+    badge.textContent = isLadder
+      ? `Escalera (${r.jump.label}) · ¡Sube si acierta!`
+      : `Alerta de Serpiente (${r.jump.label}) · ¡Se salva si acierta!`;
+
+    $('ch-host-title').textContent = card.title;
+    $('ch-host-prompt').textContent = card.prompt;
+    $('ch-host-feedback').hidden = true;
+
+    const optContainer = $('ch-host-options');
+    optContainer.replaceChildren();
+    const letters = ['A', 'B', 'C', 'D'];
+    card.options.forEach((optText, idx) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'ch-opt-btn';
+      btn.dataset.idx = String(idx);
+
+      const spanLetter = document.createElement('span');
+      spanLetter.className = 'opt-letter';
+      spanLetter.textContent = letters[idx];
+
+      const spanText = document.createElement('span');
+      spanText.textContent = optText;
+
+      btn.append(spanLetter, spanText);
+      btn.addEventListener('click', () => {
+        if (this.currentChallenge && !this.currentChallenge.answered) {
+          this.onAnswer(player.id, { cardId: card.id, selectedIndex: idx });
+        }
+      });
+      optContainer.append(btn);
+    });
+
+    modal.hidden = false;
+
+    // Timer de 30s en host
+    let timeLeft = 30;
+    $('ch-host-timer').textContent = `${timeLeft}s`;
+    $('ch-host-timer-fill').style.width = '100%';
+    clearInterval(this.challengeTimer);
+    this.challengeTimer = setInterval(() => {
+      timeLeft--;
+      if (timeLeft <= 0) {
+        clearInterval(this.challengeTimer);
+        $('ch-host-timer').textContent = '0s';
+        $('ch-host-timer-fill').style.width = '0%';
+        if (this.currentChallenge && !this.currentChallenge.answered) {
+          this.onAnswer(player.id, { cardId: card.id, selectedIndex: -1 });
+        }
+      } else {
+        $('ch-host-timer').textContent = `${timeLeft}s`;
+        $('ch-host-timer-fill').style.width = `${(timeLeft / 30) * 100}%`;
+      }
+    }, 1000);
+
+    this.log(`${player.name} enfrenta validación ética: ${card.title}`, isLadder ? 'ladder' : 'snake', r.jump.label, player.color);
+
+    // 2. Enviar a cliente móvil
+    this.net?.send(player.id, {
+      t: MSG.CHALLENGE,
+      playerId: player.id,
+      jump: r.jump,
+      card: {
+        id: card.id,
+        kind: card.kind,
+        theme: card.theme,
+        title: card.title,
+        prompt: card.prompt,
+        options: card.options,
+      },
+      timeoutMs: 30000,
+    });
+
+    this.publish();
+
+    // 3. Si es un bot, responde automáticamente
+    if (player.id.startsWith('bot-')) {
+      clearTimeout(this.botTimer);
+      this.botTimer = setTimeout(() => {
+        if (!this.currentChallenge || this.currentChallenge.answered) return;
+        const willBeCorrect = Math.random() < 0.75;
+        let pick = card.correct;
+        if (!willBeCorrect) {
+          const wrongIndices = [0, 1, 2, 3].filter((i) => i !== card.correct);
+          pick = wrongIndices[Math.floor(Math.random() * wrongIndices.length)];
+        }
+        this.onAnswer(player.id, { cardId: card.id, selectedIndex: pick });
+      }, 2500);
+    }
+  }
+
+  async onAnswer(playerId, msg) {
+    if (!this.currentChallenge || this.currentChallenge.playerId !== playerId) return;
+    if (this.currentChallenge.answered) return;
+    this.currentChallenge.answered = true;
+    clearInterval(this.challengeTimer);
+    clearTimeout(this.botTimer);
+
+    const { card, jump, token } = this.currentChallenge;
+    const player = this.game.state.players.find((p) => p.id === playerId);
+    const isLadder = jump.kind === 'ladder';
+    const isCorrect = msg.selectedIndex === card.correct;
+
+    const res = this.game.resolveChallenge(playerId, isCorrect);
+
+    this.net?.broadcast({
+      t: MSG.CHALLENGE_RESULT,
+      playerId,
+      cardId: card.id,
+      correct: isCorrect,
+      selectedIndex: msg.selectedIndex,
+      correctIndex: card.correct,
+      explanation: card.explanation,
+      tip: card.tip,
+      outcome: res.outcome,
+      newPosition: res.final,
+    });
+
+    // Actualizar UI del modal en el Host
+    const optButtons = $('ch-host-options').querySelectorAll('.ch-opt-btn');
+    optButtons.forEach((b, idx) => {
+      b.disabled = true;
+      if (idx === card.correct) b.classList.add('correct');
+      else if (idx === msg.selectedIndex && !isCorrect) b.classList.add('wrong');
+    });
+
+    const fb = $('ch-host-feedback');
+    const resTitle = $('ch-host-res');
+    if (isCorrect) {
+      resTitle.className = 'ch-res-success';
+      resTitle.textContent = isLadder
+        ? '✓ ¡Validación ética superada! Sube la escalera.'
+        : '✓ ¡Mitigación aplicada! Se salva de caer por la serpiente.';
+    } else {
+      resTitle.className = 'ch-res-fail';
+      resTitle.textContent = isLadder
+        ? '✕ Validación fallida: Se queda en la casilla.'
+        : '✕ Falla de mitigación: Cae en la trampa algorítmica.';
+    }
+    $('ch-host-expl').textContent = card.explanation;
+    $('ch-host-tip').textContent = card.tip ? `› ${card.tip}` : '';
+    fb.hidden = false;
+
+    if (isCorrect) {
+      if (isLadder) this.log(`${player.name} superó la validación ética: sube ${jump.from}→${jump.to}`, 'ladder', jump.label, player.color);
+      else this.log(`¡Mitigación exitosa! ${player.name} neutralizó el sesgo de la serpiente ${jump.from}`, 'win', jump.label, THEME.lime);
+    } else {
+      if (isLadder) this.log(`${player.name} falló la validación: no sube y se queda en casilla ${jump.from}`, 'snake', jump.label, player.color);
+      else this.log(`${player.name} cayó en la trampa de sesgo: desciende ${jump.from}→${jump.to}`, 'snake', jump.label, player.color);
+    }
+
+    try {
+      if (res.outcome === 'climb') {
+        await sleep(this.anim.reduced ? 200 : 500);
+        await this.anim.slideAlongJump(token, jump.from, jump.to, 'ladder');
+      } else if (res.outcome === 'fall') {
+        await sleep(this.anim.reduced ? 200 : 500);
+        await this.anim.slideAlongJump(token, jump.from, jump.to, 'snake');
+      } else if (res.outcome === 'saved') {
+        this.s3.highlightTile(jump.from, THEME.lime);
+        await sleep(800);
+      } else if (res.outcome === 'stay') {
+        this.s3.highlightTile(jump.from, THEME.amber);
+        await sleep(800);
+      }
+
+      if (res.won) {
+        this.log(`${player.name} llega a la casilla 100: ¡despliegue ético!`, 'win', null, '#fbbf24');
+        await this.anim.celebrate(token);
+      } else if (res.extraTurn) {
+        this.log(`${player.name} repite turno (sacó 6)`, '', null, player.color);
+      }
+    } catch (err) {
+      console.error('Error animando resultado de desafío', err);
+      if (token) token.position.copy(this.s3.tokenPosition(token, res.final));
+    }
+
+    await sleep(2500);
+    $('challenge-modal').hidden = true;
+
+    this.busy = false;
+    this.currentChallenge = null;
+    const st = this.game.state;
+    this.s3.clearHighlights();
+    this.publish();
+
+    if (st.phase === 'finished') {
+      this.showVictory(st);
+    } else {
       const next = st.players.find((p) => p.id === st.turnPlayerId);
       if (next) this.anim.focusCamera(this.s3._center, { duration: 1.0 });
       this.maybeAutoplay();

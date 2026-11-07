@@ -73,9 +73,10 @@ export function resolveJump(n) {
  * Eventos: 'playerAdded','playerRemoved','started','rolled','moved','jumped','turn','won'.
  */
 export class Game {
-  /** @param {{rng?: () => number}} [opts] rng debe devolver [0,1). */
-  constructor({ rng = Math.random } = {}) {
+  /** @param {{rng?: () => number, interactiveChallenges?: boolean}} [opts] rng debe devolver [0,1). */
+  constructor({ rng = Math.random, interactiveChallenges = false } = {}) {
     this._rng = rng;
+    this._interactiveChallenges = Boolean(interactiveChallenges);
     this._players = [];
     this._phase = 'lobby';
     this._turnIndex = 0;
@@ -83,6 +84,7 @@ export class Game {
     this._sixes = 0;
     this._lastRoll = null;
     this._winnerId = null;
+    this._pendingChallenge = null;
     this._version = 0;
     this._listeners = new Map();
   }
@@ -217,9 +219,17 @@ export class Game {
       }
       const j = resolveJump(result.landed);
       if (j.kind) result.jump = { from: result.landed, to: j.to, kind: j.kind, label: j.label };
-      result.final = j.to;
-      result.won = result.final === last;
-      result.extraTurn = dice === 6 && !result.won;
+
+      if (this._interactiveChallenges && result.jump) {
+        result.pendingChallenge = true;
+        result.final = result.landed;
+        result.won = false;
+        result.extraTurn = false;
+      } else {
+        result.final = j.to;
+        result.won = result.final === last;
+        result.extraTurn = dice === 6 && !result.won;
+      }
     }
 
     player.position = result.final;
@@ -233,6 +243,19 @@ export class Game {
 
     this._emit('rolled', result);
     if (result.path.length) this._emit('moved', { playerId, from, path: result.path, to: result.landed });
+
+    if (result.pendingChallenge) {
+      this._phase = 'challenge';
+      this._pendingChallenge = {
+        playerId,
+        jump: result.jump,
+        dice: result.dice,
+        extraTurn: result.dice === 6,
+      };
+      this._emit('challenge', { playerId, jump: result.jump, dice: result.dice, extraTurn: result.dice === 6 });
+      return result;
+    }
+
     if (result.jump) this._emit('jumped', { playerId, ...result.jump });
     if (result.won) {
       this._emit('won', { playerId, forfeit: false });
@@ -242,15 +265,81 @@ export class Game {
     return result;
   }
 
+  /**
+   * Resuelve el desafío ético pendiente para la serpiente o escalera.
+   * @param {string} playerId
+   * @param {boolean} success si el jugador acertó o superó la validación
+   * @returns {{playerId:string, jump:object, success:boolean, outcome:string, final:number, won:boolean, extraTurn:boolean}}
+   */
+  resolveChallenge(playerId, success) {
+    if (this._phase !== 'challenge') throw new GameError('not_in_challenge', 'La partida no está en fase de desafío');
+    if (!this._pendingChallenge || this._pendingChallenge.playerId !== playerId) {
+      throw new GameError('not_your_challenge', 'No es tu turno de responder el desafío');
+    }
+    const { jump, extraTurn } = this._pendingChallenge;
+    const player = this._players.find((p) => p.id === playerId);
+    const lad = jump.kind === 'ladder';
+
+    let finalPos;
+    let outcome;
+    if (lad) {
+      if (success) {
+        finalPos = jump.to;
+        outcome = 'climb';
+      } else {
+        finalPos = jump.from;
+        outcome = 'stay';
+      }
+    } else {
+      if (success) {
+        finalPos = jump.from; // mitigación exitosa: se salva del sesgo/serpiente
+        outcome = 'saved';
+      } else {
+        finalPos = jump.to; // cae por la serpiente
+        outcome = 'fall';
+      }
+    }
+
+    player.position = finalPos;
+    const won = finalPos === BOARD.tiles;
+    this._phase = won ? 'finished' : 'playing';
+    if (won) this._winnerId = playerId;
+
+    const resolution = {
+      playerId,
+      jump,
+      success: Boolean(success),
+      outcome,
+      final: finalPos,
+      won,
+      extraTurn: extraTurn && !won,
+    };
+    this._pendingChallenge = null;
+    this._version++;
+
+    if (outcome === 'climb' || outcome === 'fall') {
+      this._emit('jumped', { playerId, from: jump.from, to: jump.to, kind: jump.kind, label: jump.label });
+    }
+    this._emit('challengeResolved', resolution);
+
+    if (won) {
+      this._emit('won', { playerId, forfeit: false });
+    } else {
+      this._advance(resolution.extraTurn);
+    }
+    return resolution;
+  }
+
   /** Snapshot serializable (copia profunda). `version` crece con cada cambio. */
   get state() {
-    const turnPlayer = this._phase === 'playing' ? this._players[this._turnIndex] : null;
+    const turnPlayer = this._phase === 'playing' || this._phase === 'challenge' ? this._players[this._turnIndex] : null;
     return {
       phase: this._phase,
       players: this._players.map((p) => this._pub(p)),
       turnPlayerId: turnPlayer ? turnPlayer.id : null,
       turnNumber: this._turnNumber,
       lastRoll: this._lastRoll ? { ...this._lastRoll, path: [...this._lastRoll.path] } : null,
+      pendingChallenge: this._pendingChallenge ? { ...this._pendingChallenge } : null,
       winnerId: this._winnerId,
       version: this._version,
     };

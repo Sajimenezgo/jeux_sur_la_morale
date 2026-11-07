@@ -216,3 +216,74 @@ test('determinismo con rng inyectable', () => {
   const play = () => { const g = setup(mk()); const out = []; for (let i = 0; i < 20 && g.state.phase === 'playing'; i++) out.push(g.roll(g.state.turnPlayerId).dice); return out; };
   assert.deepEqual(play(), play());
 });
+
+test('interactiveChallenges: escalera 4→25 (acierto sube, fallo se queda en 4)', () => {
+  // Caso acierto
+  const gClimb = new Game({ rng: dice(4), interactiveChallenges: true });
+  gClimb.addPlayer({ id: 'p0', name: 'A', characterId: 'scientist' });
+  gClimb.addPlayer({ id: 'p1', name: 'B', characterId: 'engineer' });
+  gClimb.setReady('p0', true);
+  gClimb.setReady('p1', true);
+  gClimb.start();
+
+  const r = gClimb.roll('p0');
+  assert.equal(r.pendingChallenge, true);
+  assert.equal(gClimb.state.phase, 'challenge');
+  assert.equal(gClimb.state.players[0].position, 4);
+
+  const resClimb = gClimb.resolveChallenge('p0', true);
+  assert.equal(resClimb.outcome, 'climb');
+  assert.equal(resClimb.final, 25);
+  assert.equal(gClimb.state.players[0].position, 25);
+  assert.equal(gClimb.state.phase, 'playing');
+  assert.equal(gClimb.state.turnPlayerId, 'p1');
+
+  // Caso fallo
+  const gStay = new Game({ rng: dice(4), interactiveChallenges: true });
+  gStay.addPlayer({ id: 'p0', name: 'A', characterId: 'scientist' });
+  gStay.addPlayer({ id: 'p1', name: 'B', characterId: 'engineer' });
+  gStay.setReady('p0', true);
+  gStay.setReady('p1', true);
+  gStay.start();
+
+  gStay.roll('p0');
+  const resStay = gStay.resolveChallenge('p0', false);
+  assert.equal(resStay.outcome, 'stay');
+  assert.equal(resStay.final, 4);
+  assert.equal(gStay.state.players[0].position, 4);
+  assert.equal(gStay.state.turnPlayerId, 'p1');
+});
+
+test('interactiveChallenges: serpiente 27→5 (acierto se salva, fallo cae a 5)', () => {
+  // Caso acierto (se salva)
+  const gSaved = new Game({ rng: dice(2), interactiveChallenges: true });
+  gSaved.addPlayer({ id: 'p0', name: 'A', characterId: 'scientist' });
+  gSaved.addPlayer({ id: 'p1', name: 'B', characterId: 'engineer' });
+  gSaved.setReady('p0', true);
+  gSaved.setReady('p1', true);
+  gSaved.start();
+  place(gSaved, 'p0', 25);
+
+  gSaved.roll('p0');
+  assert.equal(gSaved.state.phase, 'challenge');
+  const resSaved = gSaved.resolveChallenge('p0', true);
+  assert.equal(resSaved.outcome, 'saved');
+  assert.equal(resSaved.final, 27);
+  assert.equal(gSaved.state.players[0].position, 27);
+
+  // Caso fallo (cae)
+  const gFall = new Game({ rng: dice(2), interactiveChallenges: true });
+  gFall.addPlayer({ id: 'p0', name: 'A', characterId: 'scientist' });
+  gFall.addPlayer({ id: 'p1', name: 'B', characterId: 'engineer' });
+  gFall.setReady('p0', true);
+  gFall.setReady('p1', true);
+  gFall.start();
+  place(gFall, 'p0', 25);
+
+  gFall.roll('p0');
+  const resFall = gFall.resolveChallenge('p0', false);
+  assert.equal(resFall.outcome, 'fall');
+  assert.equal(resFall.final, 5);
+  assert.equal(gFall.state.players[0].position, 5);
+});
+

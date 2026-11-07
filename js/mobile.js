@@ -6,7 +6,7 @@ import { resolvePeerClass } from './supabase_peer.js';
 
 const $ = (id) => document.getElementById(id);
 const charOf = (id) => CHARACTERS.find((c) => c.id === id);
-const SCREENS = ['s-join', 's-pick', 's-ready', 's-play', 's-end'];
+const SCREENS = ['s-join', 's-pick', 's-ready', 's-play', 's-challenge', 's-end'];
 const vibrate = (p) => { try { navigator.vibrate?.(p); } catch { /* sin soporte */ } };
 const store = {
   get(k) { try { return localStorage.getItem(k); } catch { return null; } },
@@ -35,6 +35,9 @@ const app = {
   wasMyTurn: false,
   resultTimer: 0,
   wakeLock: null,
+  currentChallenge: null,
+  challengeTimer: null,
+  autoDismissChallenge: null,
 
   init() {
     const room = (new URLSearchParams(location.search).get('room') || '').toUpperCase().slice(0, GAME.roomCodeLength);
@@ -106,6 +109,8 @@ const app = {
       case MSG.STATE: this.setState(m.state); break;
       case MSG.ROLLED: this.onRolled(m.result); break;
       case MSG.ERROR: this.onError(m); break;
+      case MSG.CHALLENGE: this.onChallenge(m); break;
+      case MSG.CHALLENGE_RESULT: this.onChallengeResult(m); break;
       default: break;
     }
   },
@@ -187,6 +192,140 @@ const app = {
     this.resultTimer = setTimeout(() => { big.hidden = true; }, 4000);
   },
 
+  onChallenge(m) {
+    if (m.playerId !== this.myId) return;
+    this.currentChallenge = m;
+    vibrate([80, 40, 80, 40, 150]);
+    this.meCard($('me-card3'));
+
+    const isLadder = m.jump.kind === 'ladder';
+    const box = document.querySelector('.challenge-box');
+    if (box) box.className = `challenge-box glass ${isLadder ? 'ladder' : 'snake'}`;
+
+    const badge = $('ch-badge');
+    badge.className = `challenge-badge ${isLadder ? 'ch-badge-ladder' : 'ch-badge-snake'}`;
+    badge.textContent = isLadder
+      ? `Escalera (${m.jump.label}) · ¡Sube si aciertas!`
+      : `Alerta de Serpiente (${m.jump.label}) · ¡Sálvate si aciertas!`;
+
+    $('ch-title').textContent = m.card.title;
+    $('ch-prompt').textContent = m.card.prompt;
+
+    const optContainer = $('ch-options');
+    optContainer.replaceChildren();
+
+    const letters = ['A', 'B', 'C', 'D'];
+    m.card.options.forEach((optText, idx) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'ch-opt-btn';
+      btn.dataset.idx = String(idx);
+
+      const spanLetter = document.createElement('span');
+      spanLetter.className = 'opt-letter';
+      spanLetter.textContent = letters[idx];
+
+      const spanText = document.createElement('span');
+      spanText.textContent = optText;
+
+      btn.append(spanLetter, spanText);
+      btn.addEventListener('click', () => this.sendAnswer(m.card.id, idx));
+      optContainer.append(btn);
+    });
+
+    $('ch-feedback').hidden = true;
+    optContainer.hidden = false;
+
+    // Timer regressivo
+    clearInterval(this.challengeTimer);
+    let timeLeft = Math.floor((m.timeoutMs || 30000) / 1000);
+    $('ch-timer-num').textContent = `${timeLeft}s`;
+    $('ch-timer-fill').style.width = '100%';
+
+    const totalSeconds = timeLeft;
+    this.challengeTimer = setInterval(() => {
+      timeLeft--;
+      if (timeLeft <= 0) {
+        clearInterval(this.challengeTimer);
+        $('ch-timer-num').textContent = '0s';
+        $('ch-timer-fill').style.width = '0%';
+      } else {
+        $('ch-timer-num').textContent = `${timeLeft}s`;
+        $('ch-timer-fill').style.width = `${(timeLeft / totalSeconds) * 100}%`;
+      }
+    }, 1000);
+
+    this.show('s-challenge');
+  },
+
+  sendAnswer(cardId, selectedIndex) {
+    if (!this.currentChallenge || this.currentChallenge.answered) return;
+    this.currentChallenge.answered = true;
+    clearInterval(this.challengeTimer);
+
+    const buttons = $('ch-options').querySelectorAll('.ch-opt-btn');
+    buttons.forEach((b, idx) => {
+      b.disabled = true;
+      if (idx === selectedIndex) b.classList.add('selected');
+    });
+
+    this.net?.send({
+      t: MSG.ANSWER,
+      cardId,
+      selectedIndex,
+    });
+  },
+
+  onChallengeResult(m) {
+    if (m.playerId !== this.myId) {
+      if (this.state?.phase === 'challenge') {
+        const tp = this.state.players.find((p) => p.id === m.playerId);
+        $('play-status').textContent = m.correct
+          ? `${tp?.name ?? 'El jugador'} superó la validación ética.`
+          : `${tp?.name ?? 'El jugador'} falló la validación ética.`;
+      }
+      return;
+    }
+
+    clearInterval(this.challengeTimer);
+    vibrate(m.correct ? [100, 50, 150] : [250, 100, 250]);
+
+    const buttons = $('ch-options').querySelectorAll('.ch-opt-btn');
+    buttons.forEach((b, idx) => {
+      b.disabled = true;
+      if (idx === m.correctIndex) b.classList.add('correct');
+      else if (idx === m.selectedIndex && !m.correct) b.classList.add('wrong');
+    });
+
+    const isLadder = this.currentChallenge?.jump?.kind === 'ladder';
+    const resHeader = $('ch-result-header');
+    if (m.correct) {
+      resHeader.className = 'ch-res-success';
+      resHeader.textContent = isLadder ? '✓ ¡Validación exitosa! Subes la escalera.' : '✓ ¡Mitigación correcta! Te salvaste de la serpiente.';
+    } else {
+      resHeader.className = 'ch-res-fail';
+      resHeader.textContent = isLadder ? '✕ Validación fallida: Te quedas en la casilla.' : '✕ Falla de mitigación: Caes por la serpiente.';
+    }
+
+    $('ch-explanation').textContent = m.explanation;
+    $('ch-tip').textContent = m.tip ? `› ${m.tip}` : '';
+    $('ch-feedback').hidden = false;
+
+    $('ch-continue-btn').onclick = () => {
+      clearTimeout(this.autoDismissChallenge);
+      this.currentChallenge = null;
+      this.show('s-play');
+    };
+
+    clearTimeout(this.autoDismissChallenge);
+    this.autoDismissChallenge = setTimeout(() => {
+      if (this.currentChallenge) {
+        this.currentChallenge = null;
+        this.show('s-play');
+      }
+    }, 5500);
+  },
+
   meCard(el) {
     const me = this.me;
     el.replaceChildren();
@@ -236,6 +375,20 @@ const app = {
       else if (!$('result-big').hidden) { /* conserva el mensaje del resultado */ } else $('play-status').textContent = tp ? `Turno de ${tp.name}…` : '';
       this.show('s-play');
       return;
+    }
+    if (st.phase === 'challenge' && me) {
+      if (st.pendingChallenge?.playerId === me.id) {
+        // El jugador activo está en el reto
+        if (!$('s-challenge').hidden) return;
+      } else {
+        this.meCard($('me-card2'));
+        const btn = $('roll-btn');
+        btn.disabled = true;
+        const tp = st.players.find((p) => p.id === st.pendingChallenge?.playerId);
+        $('play-status').textContent = tp ? `${tp.name} está en validación ética…` : 'Validación ética en curso…';
+        this.show('s-play');
+        return;
+      }
     }
     // finished o espectador
     const w = st.players.find((p) => p.id === st.winnerId);
